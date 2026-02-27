@@ -60,6 +60,7 @@ export default function Sidebar() {
   };
 
   const handleSelectSession = (sessionId: string) => {
+    setActiveSession(null);
     councilReset();
     loadAndSetSession(sessionId, sessionSavePath);
   };
@@ -73,8 +74,11 @@ export default function Sidebar() {
 
   return (
     <div className="w-64 h-full flex flex-col bg-[var(--color-bg-sidebar)] border-r border-[var(--color-border-primary)]">
-      {/* Title bar drag region */}
-      <div className="titlebar-drag-region h-12 flex items-end px-3 pb-2">
+      {/* Spacer for macOS traffic light buttons */}
+      <div className="titlebar-drag-region h-12 flex-shrink-0" />
+
+      {/* New session button */}
+      <div className="px-3 pb-2">
         <button
           onClick={handleNewSession}
           className="titlebar-no-drag flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-hover)] rounded-[var(--radius-md)] transition-colors w-full"

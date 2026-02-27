@@ -12,7 +12,7 @@ pub struct ClarifyingExchange {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all_fields = "camelCase")]
 #[serde(tag = "role")]
 pub enum DiscussionEntry {
     #[serde(rename = "user")]
@@ -22,8 +22,10 @@ pub enum DiscussionEntry {
         provider: String,
         model: String,
         display_name: String,
+        #[serde(default)]
         system_prompt: Option<String>,
         content: String,
+        #[serde(default)]
         #[serde(skip_serializing_if = "Option::is_none")]
         clarifying_exchange: Option<Vec<ClarifyingExchange>>,
     },

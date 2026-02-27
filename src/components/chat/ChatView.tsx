@@ -11,7 +11,7 @@ import Button from '../common/Button';
 import { useCouncilStore } from '../../stores/councilStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useSessionStore } from '../../stores/sessionStore';
-import { getApiKey } from '../../lib/tauri';
+import { getApiKey, streamChat, onStreamToken } from '../../lib/tauri';
 import type { DiscussionEntry, Session } from '../../types';
 
 export default function ChatView() {
@@ -19,18 +19,34 @@ export default function ChatView() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [entries, setEntries] = useState<DiscussionEntry[]>([]);
+  const entriesRef = useRef<DiscussionEntry[]>([]);
 
   const council = useCouncilStore();
   const settings = useSettingsStore((s) => s.settings);
   const { activeSession, createSession, saveCurrentSession, updateActiveSession } =
     useSessionStore();
+  const sessionLoading = useSessionStore((s) => s.loading);
+  const sessionError = useSessionStore((s) => s.error);
+
+  // Refs for stable access in callbacks (avoid stale closures)
+  const saveSessionRef = useRef(saveCurrentSession);
+  const updateSessionRef = useRef(updateActiveSession);
+  const settingsRef = useRef(settings);
+
+  useEffect(() => {
+    saveSessionRef.current = saveCurrentSession;
+    updateSessionRef.current = updateActiveSession;
+    settingsRef.current = settings;
+  }, [saveCurrentSession, updateActiveSession, settings]);
 
   // Load entries from active session
   useEffect(() => {
     if (activeSession) {
       setEntries(activeSession.discussion);
+      entriesRef.current = activeSession.discussion;
     } else {
       setEntries([]);
+      entriesRef.current = [];
     }
   }, [activeSession?.id]);
 
@@ -41,24 +57,72 @@ export default function ChatView() {
     }
   }, [entries, council.currentStreamContent, council.state]);
 
+  // Incremental auto-save after each entry
   const handleEntryComplete = useCallback(
     (entry: DiscussionEntry) => {
-      setEntries((prev) => [...prev, entry]);
-      updateActiveSession({
-        discussion: [...(activeSession?.discussion || []), entry],
+      const updated = [...entriesRef.current, entry];
+      entriesRef.current = updated;
+      setEntries(updated);
+      updateSessionRef.current({ discussion: [...updated] });
+      saveSessionRef.current(settingsRef.current.sessionSavePath).catch((err) => {
+        console.error('Failed to auto-save session entry:', err);
       });
     },
-    [activeSession, updateActiveSession],
+    [],
   );
+
+  // Step 5: Generate smart session title via master model
+  const generateSessionTitle = useCallback(async (question: string) => {
+    try {
+      const currentSettings = settingsRef.current;
+      const masterApiKey = await getApiKey(
+        `com.council-of-ai-agents.${currentSettings.masterModel.provider}`,
+      );
+      if (!masterApiKey) return;
+
+      const streamId = uuidv4();
+      const unlisten = await onStreamToken(streamId, () => {});
+      const title = await streamChat(
+        currentSettings.masterModel.provider as any,
+        currentSettings.masterModel.model,
+        [
+          {
+            role: 'user',
+            content: `Generate a short, descriptive title (5-8 words max, no quotes, no punctuation at the end) for this conversation:\n\n"${question}"`,
+          },
+        ],
+        'You generate concise conversation titles. Return ONLY the title text, nothing else.',
+        masterApiKey,
+        streamId,
+      );
+      unlisten();
+
+      const cleanTitle = title.trim().replace(/^["']|["']$/g, '');
+      if (cleanTitle) {
+        updateSessionRef.current({ title: cleanTitle });
+        saveSessionRef.current(settingsRef.current.sessionSavePath).catch(console.error);
+      }
+    } catch (err) {
+      console.error('Failed to generate session title:', err);
+      // Placeholder title remains — no user impact
+    }
+  }, []);
 
   const handleSubmit = async () => {
     const question = input.trim();
-    if (!question || council.state !== 'idle') return;
+    if (!question) return;
+
+    // Step 1: Allow submission from terminal states (complete, error), not just idle
+    if (council.state !== 'idle' && council.state !== 'complete' && council.state !== 'error') return;
+    if (council.state !== 'idle') {
+      council.reset();
+    }
 
     setInput('');
     setEntries([]);
+    entriesRef.current = [];
 
-    // Create a new session
+    // Create a new session with placeholder title
     const session: Session = {
       id: uuidv4(),
       title: question.length > 57 ? question.slice(0, 57) + '...' : question,
@@ -75,6 +139,17 @@ export default function ChatView() {
 
     createSession(session);
 
+    // Step 2: Save to disk immediately — session appears in sidebar right away
+    try {
+      await saveCurrentSession(settings.sessionSavePath);
+    } catch (err) {
+      console.error('Failed to save initial session:', err);
+    }
+
+    // Step 5: Generate smart title in the background (fire-and-forget)
+    generateSessionTitle(question);
+
+    // Run the council discussion (each entry auto-saves via handleEntryComplete)
     await council.startDiscussion(
       question,
       settings.councilModels,
@@ -84,8 +159,13 @@ export default function ChatView() {
       handleEntryComplete,
     );
 
-    // Save session when done
-    saveCurrentSession(settings.sessionSavePath);
+    // Final save with all collected entries
+    updateActiveSession({ discussion: entriesRef.current });
+    try {
+      await saveCurrentSession(settings.sessionSavePath);
+    } catch (err) {
+      console.error('Failed to save completed session:', err);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -102,31 +182,57 @@ export default function ChatView() {
     <div className="flex flex-col h-full">
       {/* Messages area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
-        {entries.length === 0 && council.state === 'idle' ? (
-          <div className="flex flex-col items-center justify-center h-full px-6">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-              className="text-center max-w-lg"
-            >
-              <div className="w-16 h-16 rounded-2xl bg-[var(--color-accent-light)] flex items-center justify-center mx-auto mb-6">
-                <Sparkles size={28} className="text-[var(--color-accent)]" />
+        {entries.length === 0 && council.state === 'idle' && !sessionLoading ? (
+          sessionError ? (
+            <div className="flex flex-col items-center justify-center h-full px-6">
+              <div className="text-center max-w-lg">
+                <div className="p-4 rounded-[var(--radius-md)] bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
+                  <p className="text-sm text-red-600 dark:text-red-400">
+                    {sessionError}
+                  </p>
+                </div>
               </div>
-              <h1 className="text-2xl font-semibold text-[var(--color-text-primary)] mb-3">
-                Council of AI Agents
-              </h1>
-              <p className="text-[var(--color-text-secondary)] text-[15px] leading-relaxed mb-6">
-                Ask a question and get insights from multiple AI models working
-                together. Each model provides its unique perspective before a
-                master model delivers the final verdict.
-              </p>
-              {!hasModels && (
-                <p className="text-sm text-[var(--color-accent)]">
-                  Set up your council models in Settings to get started.
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full px-6">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                className="text-center max-w-lg"
+              >
+                <div className="w-16 h-16 rounded-2xl bg-[var(--color-accent-light)] flex items-center justify-center mx-auto mb-6">
+                  <Sparkles size={28} className="text-[var(--color-accent)]" />
+                </div>
+                <h1 className="text-2xl font-semibold text-[var(--color-text-primary)] mb-3">
+                  Council of AI Agents
+                </h1>
+                <p className="text-[var(--color-text-secondary)] text-[15px] leading-relaxed mb-6">
+                  Ask a question and get insights from multiple AI models working
+                  together. Each model provides its unique perspective before a
+                  master model delivers the final verdict.
                 </p>
-              )}
-            </motion.div>
+                {!hasModels && (
+                  <p className="text-sm text-[var(--color-accent)]">
+                    Set up your council models in Settings to get started.
+                  </p>
+                )}
+              </motion.div>
+            </div>
+          )
+        ) : entries.length === 0 && sessionLoading ? (
+          <div className="flex flex-col items-center justify-center h-full px-6">
+            <div className="flex gap-1.5">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="w-2.5 h-2.5 rounded-full bg-[var(--color-accent)] thinking-dot"
+                />
+              ))}
+            </div>
+            <p className="mt-3 text-sm text-[var(--color-text-tertiary)]">
+              Loading session...
+            </p>
           </div>
         ) : (
           <div className="max-w-4xl mx-auto py-6">

@@ -6,6 +6,7 @@ interface SessionState {
   sessions: SessionSummary[];
   activeSession: Session | null;
   loading: boolean;
+  error: string | null;
 
   loadSessions: (customPath?: string | null) => Promise<void>;
   createSession: (session: Session) => void;
@@ -20,32 +21,35 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   sessions: [],
   activeSession: null,
   loading: false,
+  error: null,
 
   loadSessions: async (customPath) => {
-    set({ loading: true });
+    set({ loading: true, error: null });
     try {
       const sessions = await tauri.listSessions(customPath);
       set({ sessions, loading: false });
-    } catch {
-      set({ loading: false });
+    } catch (err) {
+      console.error('Failed to load sessions:', err);
+      set({ loading: false, error: `Failed to load sessions: ${err}` });
     }
   },
 
   createSession: (session) => {
-    set({ activeSession: session });
+    set({ activeSession: session, error: null });
   },
 
   setActiveSession: (session) => {
-    set({ activeSession: session });
+    set({ activeSession: session, error: null });
   },
 
   loadAndSetSession: async (sessionId, customPath) => {
-    set({ loading: true });
+    set({ loading: true, error: null });
     try {
       const session = await tauri.loadSession(sessionId, customPath);
       set({ activeSession: session, loading: false });
-    } catch {
-      set({ loading: false });
+    } catch (err) {
+      console.error('Failed to load session:', err);
+      set({ loading: false, error: `Failed to load session: ${err}` });
     }
   },
 
@@ -55,11 +59,16 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
     const updated = { ...session, updatedAt: new Date().toISOString() };
     set({ activeSession: updated });
-    await tauri.saveSession(updated, customPath);
 
-    // Refresh the session list
-    const sessions = await tauri.listSessions(customPath);
-    set({ sessions });
+    try {
+      await tauri.saveSession(updated, customPath);
+      // Refresh the session list
+      const sessions = await tauri.listSessions(customPath);
+      set({ sessions });
+    } catch (err) {
+      console.error('Failed to save session:', err);
+      set({ error: `Failed to save session: ${err}` });
+    }
   },
 
   updateActiveSession: (partial) => {
@@ -69,12 +78,18 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   deleteSession: async (sessionId, customPath) => {
-    await tauri.deleteSession(sessionId, customPath);
-    const state = get();
-    if (state.activeSession?.id === sessionId) {
-      set({ activeSession: null });
+    set({ error: null });
+    try {
+      await tauri.deleteSession(sessionId, customPath);
+      const state = get();
+      if (state.activeSession?.id === sessionId) {
+        set({ activeSession: null });
+      }
+      const sessions = await tauri.listSessions(customPath);
+      set({ sessions });
+    } catch (err) {
+      console.error('Failed to delete session:', err);
+      set({ error: `Failed to delete session: ${err}` });
     }
-    const sessions = await tauri.listSessions(customPath);
-    set({ sessions });
   },
 }));
