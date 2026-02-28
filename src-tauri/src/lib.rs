@@ -7,6 +7,7 @@ use commands::{api_calls, keychain, sessions, settings};
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(keychain::ApiKeyCache::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {

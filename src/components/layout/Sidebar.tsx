@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
   Plus,
   MessageSquare,
@@ -75,7 +76,10 @@ export default function Sidebar() {
   return (
     <div className="w-64 h-full flex flex-col bg-[var(--color-bg-sidebar)] border-r border-[var(--color-border-primary)]">
       {/* Spacer for macOS traffic light buttons */}
-      <div className="titlebar-drag-region h-12 flex-shrink-0" />
+      <div
+        onMouseDown={() => getCurrentWindow().startDragging()}
+        className="titlebar-drag-region h-12 flex-shrink-0"
+      />
 
       {/* New session button */}
       <div className="px-3 pb-2">

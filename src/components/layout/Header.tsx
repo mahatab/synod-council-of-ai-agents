@@ -1,4 +1,5 @@
 import { Settings } from 'lucide-react';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useSessionStore } from '../../stores/sessionStore';
 
 interface HeaderProps {
@@ -9,9 +10,17 @@ export default function Header({ onOpenSettings }: HeaderProps) {
   const activeSession = useSessionStore((s) => s.activeSession);
   const title = activeSession?.title || 'New Session';
 
+  const handleDrag = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('.titlebar-no-drag')) return;
+    getCurrentWindow().startDragging();
+  };
+
   return (
-    <div className="titlebar-drag-region h-12 flex items-center justify-between px-4 bg-[var(--color-bg-primary)] border-b border-[var(--color-border-primary)]">
-      <span className="titlebar-no-drag text-sm font-bold text-[var(--color-text-primary)] truncate pl-16">
+    <div
+      onMouseDown={handleDrag}
+      className="titlebar-drag-region h-12 flex items-center justify-between px-4 bg-[var(--color-bg-primary)] border-b border-[var(--color-border-primary)]"
+    >
+      <span className="text-sm font-bold text-[var(--color-text-primary)] truncate pl-16">
         {title}
       </span>
       <button

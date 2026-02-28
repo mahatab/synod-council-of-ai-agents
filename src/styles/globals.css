@@ -109,6 +109,9 @@ html, body, #root {
 /* Draggable title bar region for Tauri */
 .titlebar-drag-region {
   -webkit-app-region: drag;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
 }
 
 .titlebar-no-drag {
