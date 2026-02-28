@@ -282,6 +282,22 @@ html, body, #root {
   text-decoration: underline;
 }
 
+/* Model response entrance animation (CSS instead of framer-motion to preserve position:sticky) */
+@keyframes model-response-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.model-response-enter {
+  animation: model-response-enter 0.3s var(--ease-out-expo) both;
+}
+
 /* Selection color */
 ::selection {
   background-color: color-mix(in srgb, var(--color-accent) 30%, transparent);

@@ -1,8 +1,8 @@
 [package]
-name = "council-of-ai-agents"
+name = "synod"
 version = "0.1.0"
 description = "A council of AI models that collaboratively help you make informed decisions"
-authors = ["Council of AI Agents Contributors"]
+authors = ["Synod Contributors"]
 license = "MIT"
 repository = ""
 edition = "2021"

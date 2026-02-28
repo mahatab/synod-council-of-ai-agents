@@ -115,9 +115,12 @@ export default function SetupWizard() {
                 <div className="w-16 h-16 rounded-2xl bg-[var(--color-accent-light)] flex items-center justify-center mx-auto mb-6">
                   <Sparkles size={28} className="text-[var(--color-accent)]" />
                 </div>
-                <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-3">
-                  Welcome to Council of AI Agents
+                <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-1">
+                  Welcome to Synod
                 </h1>
+                <p className="text-sm text-[var(--color-text-tertiary)] mb-3">
+                  Council of AI Agents
+                </p>
                 <p className="text-[var(--color-text-secondary)] mb-8 leading-relaxed">
                   Get insights from multiple AI models working together. Let's
                   set up your council in a few simple steps.

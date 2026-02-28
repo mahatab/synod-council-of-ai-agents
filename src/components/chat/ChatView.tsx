@@ -204,9 +204,12 @@ export default function ChatView() {
                 <div className="w-16 h-16 rounded-2xl bg-[var(--color-accent-light)] flex items-center justify-center mx-auto mb-6">
                   <Sparkles size={28} className="text-[var(--color-accent)]" />
                 </div>
-                <h1 className="text-2xl font-semibold text-[var(--color-text-primary)] mb-3">
-                  Council of AI Agents
+                <h1 className="text-2xl font-semibold text-[var(--color-text-primary)] mb-1">
+                  Synod
                 </h1>
+                <p className="text-sm text-[var(--color-text-tertiary)] mb-3">
+                  Council of AI Agents
+                </p>
                 <p className="text-[var(--color-text-secondary)] text-[15px] leading-relaxed mb-6">
                   Ask a question and get insights from multiple AI models working
                   together. Each model provides its unique perspective before a
@@ -236,7 +239,7 @@ export default function ChatView() {
           </div>
         ) : (
           <div className="max-w-4xl mx-auto py-6">
-            <AnimatePresence mode="popLayout">
+            <AnimatePresence>
               {entries.map((entry, i) => {
                 if (entry.role === 'user') {
                   return <UserMessage key={`user-${i}`} content={entry.content} />;

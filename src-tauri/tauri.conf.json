@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Council of AI Agents",
+  "productName": "Synod",
   "version": "0.1.0",
   "identifier": "com.council-of-ai-agents.app",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Council of AI Agents",
+        "title": "Synod",
         "width": 1200,
         "height": 800,
         "minWidth": 900,
@@ -38,7 +38,7 @@
       "icons/icon.ico"
     ],
     "category": "Utility",
-    "copyright": "2026 Council of AI Agents",
+    "copyright": "2026 Synod",
     "macOS": {
       "minimumSystemVersion": "10.15"
     }

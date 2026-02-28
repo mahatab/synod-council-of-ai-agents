@@ -1,10 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
   Plus,
   MessageSquare,
   Trash2,
+  Search,
+  X,
 } from 'lucide-react';
 import { useSessionStore } from '../../stores/sessionStore';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -71,7 +73,12 @@ export default function Sidebar() {
     deleteSession(sessionId, sessionSavePath);
   };
 
-  const grouped = groupSessions(sessions);
+  const [search, setSearch] = useState('');
+
+  const filtered = search.trim()
+    ? sessions.filter((s) => s.title.toLowerCase().includes(search.toLowerCase()))
+    : sessions;
+  const grouped = groupSessions(filtered);
 
   return (
     <div className="w-64 h-full flex flex-col bg-[var(--color-bg-sidebar)] border-r border-[var(--color-border-primary)]">
@@ -91,6 +98,33 @@ export default function Sidebar() {
           <span>New Session</span>
         </button>
       </div>
+
+      {/* Search sessions */}
+      {sessions.length > 0 && (
+        <div className="px-3 pb-2">
+          <div className="relative flex items-center">
+            <Search
+              size={14}
+              className="absolute left-2.5 text-[var(--color-text-tertiary)] pointer-events-none"
+            />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search sessions..."
+              className="w-full pl-8 pr-7 py-1.5 text-xs bg-[var(--color-bg-input)] border border-[var(--color-border-primary)] rounded-[var(--radius-md)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:outline-none focus:border-[var(--color-border-focus)] transition-colors"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-2 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Session list */}
       <div className="flex-1 overflow-y-auto px-2 py-2">
@@ -130,6 +164,11 @@ export default function Sidebar() {
             No sessions yet.
             <br />
             Start a conversation!
+          </p>
+        )}
+        {sessions.length > 0 && filtered.length === 0 && (
+          <p className="px-3 py-8 text-xs text-center text-[var(--color-text-tertiary)]">
+            No sessions found.
           </p>
         )}
       </div>
