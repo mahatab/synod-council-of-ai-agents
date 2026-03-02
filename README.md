@@ -1,4 +1,4 @@
-# Council of AI Agents
+# Synod — Council of AI Agents
 
 A macOS desktop application that assembles a council of AI models to collaboratively help you make informed, fact-based decisions. Ask a question, and multiple AI models from different providers discuss it sequentially, each building on previous insights, before a master model delivers the final verdict.
 
