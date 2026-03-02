@@ -70,10 +70,29 @@ export interface DiscussionEntryMasterVerdict {
   usage?: UsageData;
 }
 
+export interface DiscussionEntryFollowUpQuestion {
+  role: 'follow_up_question';
+  content: string;
+  targetProvider: string;
+  targetModel: string;
+  targetDisplayName: string;
+}
+
+export interface DiscussionEntryFollowUpAnswer {
+  role: 'follow_up_answer';
+  provider: string;
+  model: string;
+  displayName: string;
+  content: string;
+  usage?: UsageData;
+}
+
 export type DiscussionEntry =
   | DiscussionEntryUser
   | DiscussionEntryModel
-  | DiscussionEntryMasterVerdict;
+  | DiscussionEntryMasterVerdict
+  | DiscussionEntryFollowUpQuestion
+  | DiscussionEntryFollowUpAnswer;
 
 export interface CouncilConfig {
   models: ModelConfig[];
@@ -119,6 +138,7 @@ export type CouncilState =
   | 'clarifying_qa'
   | 'master_verdict'
   | 'complete'
+  | 'follow_up'
   | 'error';
 
 export interface ProviderInfo {

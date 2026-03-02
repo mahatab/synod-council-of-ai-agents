@@ -12,6 +12,7 @@ interface ModelResponseProps {
   content: string;
   isStreaming?: boolean;
   isThinking?: boolean;
+  isFollowUp?: boolean;
   clarifyingExchange?: { question: string; answer: string }[];
 }
 
@@ -21,6 +22,7 @@ export default function ModelResponse({
   content,
   isStreaming = false,
   isThinking = false,
+  isFollowUp = false,
   clarifyingExchange,
 }: ModelResponseProps) {
   const color = getProviderColor(provider as Provider);
@@ -55,6 +57,11 @@ export default function ModelResponse({
           >
             {provider}
           </span>
+          {isFollowUp && (
+            <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+              Follow-up
+            </span>
+          )}
           {content && !isThinking && (
             <button
               onClick={handleCopy}

@@ -102,10 +102,25 @@ impl Default for CursorStyle {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub enum DiscussionDepth {
+    Thorough,
+    Concise,
+}
+
+impl Default for DiscussionDepth {
+    fn default() -> Self {
+        DiscussionDepth::Thorough
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AppSettings {
     pub council_models: Vec<ModelConfig>,
     pub master_model: MasterModelConfig,
     pub system_prompt_mode: SystemPromptMode,
+    #[serde(default)]
+    pub discussion_depth: DiscussionDepth,
     pub theme: ThemeMode,
     #[serde(default)]
     pub cursor_style: CursorStyle,
@@ -122,6 +137,7 @@ impl Default for AppSettings {
                 model: "claude-opus-4-6".to_string(),
             },
             system_prompt_mode: SystemPromptMode::default(),
+            discussion_depth: DiscussionDepth::default(),
             theme: ThemeMode::default(),
             cursor_style: CursorStyle::default(),
             session_save_path: None,

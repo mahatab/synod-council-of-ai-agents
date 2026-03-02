@@ -19,6 +19,7 @@ interface CouncilStoreState {
   systemPrompts: Map<string, string>;
   clarifyingExchanges: ClarifyingExchange[];
   waitingForClarification: boolean;
+  followUpInProgress: boolean;
   error: string | null;
 
   // Actions
@@ -28,6 +29,16 @@ interface CouncilStoreState {
     masterModel: { provider: string; model: string },
     systemPromptMode: 'upfront' | 'dynamic',
     discussionDepth: DiscussionDepth,
+    getApiKey: (service: string) => Promise<string | null>,
+    onEntryComplete: (entry: DiscussionEntry) => void,
+  ) => Promise<void>;
+
+  sendFollowUp: (
+    targetProvider: string,
+    targetModel: string,
+    targetDisplayName: string,
+    followUpQuestion: string,
+    discussionEntries: DiscussionEntry[],
     getApiKey: (service: string) => Promise<string | null>,
     onEntryComplete: (entry: DiscussionEntry) => void,
   ) => Promise<void>;
@@ -44,6 +55,7 @@ export const useCouncilStore = create<CouncilStoreState>((set, get) => ({
   systemPrompts: new Map(),
   clarifyingExchanges: [],
   waitingForClarification: false,
+  followUpInProgress: false,
   error: null,
 
   startDiscussion: async (
@@ -423,6 +435,96 @@ ${JSON.stringify(
     }
   },
 
+  sendFollowUp: async (
+    targetProvider,
+    targetModel,
+    targetDisplayName,
+    followUpQuestion,
+    discussionEntries,
+    getApiKey,
+    onEntryComplete,
+  ) => {
+    set({
+      state: 'follow_up',
+      followUpInProgress: true,
+      error: null,
+    });
+
+    // Emit the follow-up question entry
+    onEntryComplete({
+      role: 'follow_up_question',
+      content: followUpQuestion,
+      targetProvider,
+      targetModel,
+      targetDisplayName,
+    });
+
+    try {
+      const apiKey = await getApiKey(
+        `com.council-of-ai-agents.${targetProvider}`,
+      );
+      if (!apiKey) {
+        set({
+          state: 'error',
+          followUpInProgress: false,
+          error: `No API key found for ${targetDisplayName} (${targetProvider})`,
+        });
+        return;
+      }
+
+      // Build messages with full discussion context
+      const messages = buildFollowUpMessages(discussionEntries, followUpQuestion);
+
+      const systemPrompt =
+        `You are ${targetDisplayName}, part of an AI council discussion. You have access to the full discussion including all council members' responses and the master verdict. The user has a follow-up question directed at you. Answer helpfully, referencing any part of the discussion as needed. Be direct and concise.`;
+
+      const streamId = uuidv4();
+      set({ currentStreamId: streamId, currentStreamContent: '' });
+
+      const unlisten = await tauri.onStreamToken(streamId, (token) => {
+        if (!token.done && !token.error) {
+          set((s) => ({
+            currentStreamContent: s.currentStreamContent + token.token,
+          }));
+        }
+      });
+
+      const result = await tauri.streamChat(
+        targetProvider as any,
+        targetModel,
+        messages,
+        systemPrompt,
+        apiKey,
+        streamId,
+      );
+
+      unlisten();
+      set({ currentStreamId: null, currentStreamContent: '' });
+
+      // Emit the follow-up answer entry
+      onEntryComplete({
+        role: 'follow_up_answer',
+        provider: targetProvider,
+        model: targetModel,
+        displayName: targetDisplayName,
+        content: result.content,
+        usage: result.usage,
+      });
+
+      set({ state: 'complete', followUpInProgress: false });
+    } catch (err) {
+      // Emit error entry and recover to complete state
+      onEntryComplete({
+        role: 'follow_up_answer',
+        provider: targetProvider,
+        model: targetModel,
+        displayName: targetDisplayName,
+        content: `[Error: Failed to get follow-up response - ${err}]`,
+      });
+      set({ state: 'complete', followUpInProgress: false, currentStreamId: null, currentStreamContent: '' });
+    }
+  },
+
   submitClarification: (answer) => {
     set((s) => {
       const exchanges = [...s.clarifyingExchanges];
@@ -445,6 +547,7 @@ ${JSON.stringify(
       systemPrompts: new Map(),
       clarifyingExchanges: [],
       waitingForClarification: false,
+      followUpInProgress: false,
       error: null,
     });
   },
@@ -513,6 +616,38 @@ function combineUsage(a?: UsageData, b?: UsageData): UsageData | undefined {
     inputTokens: (a?.inputTokens ?? 0) + (b?.inputTokens ?? 0),
     outputTokens: (a?.outputTokens ?? 0) + (b?.outputTokens ?? 0),
   };
+}
+
+function buildFollowUpMessages(
+  entries: DiscussionEntry[],
+  followUpQuestion: string,
+): ChatMessage[] {
+  // Extract original user question
+  const userEntry = entries.find(e => e.role === 'user');
+  const originalQuestion = userEntry?.content ?? '';
+
+  // Build formatted summary of the full discussion
+  const parts: string[] = [];
+  for (const entry of entries) {
+    if (entry.role === 'model') {
+      parts.push(`--- ${entry.displayName} (${entry.provider}) ---\n${entry.content}`);
+    }
+    if (entry.role === 'master_verdict') {
+      parts.push(`--- Master Verdict ---\n${entry.content}`);
+    }
+    if (entry.role === 'follow_up_question') {
+      parts.push(`--- Follow-up to ${entry.targetDisplayName} ---\n${entry.content}`);
+    }
+    if (entry.role === 'follow_up_answer') {
+      parts.push(`--- ${entry.displayName} (Follow-up Response) ---\n${entry.content}`);
+    }
+  }
+
+  return [
+    { role: 'user', content: originalQuestion },
+    { role: 'assistant', content: `Here is the full council discussion:\n\n${parts.join('\n\n')}` },
+    { role: 'user', content: followUpQuestion },
+  ];
 }
 
 function buildMasterVerdictPrompt(

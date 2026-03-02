@@ -41,6 +41,23 @@ pub enum DiscussionEntry {
         #[serde(skip_serializing_if = "Option::is_none")]
         usage: Option<UsageData>,
     },
+    #[serde(rename = "follow_up_question")]
+    FollowUpQuestion {
+        content: String,
+        target_provider: String,
+        target_model: String,
+        target_display_name: String,
+    },
+    #[serde(rename = "follow_up_answer")]
+    FollowUpAnswer {
+        provider: String,
+        model: String,
+        display_name: String,
+        content: String,
+        #[serde(default)]
+        #[serde(skip_serializing_if = "Option::is_none")]
+        usage: Option<UsageData>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

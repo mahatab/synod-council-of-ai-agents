@@ -6,6 +6,9 @@ import UserMessage from './UserMessage';
 import ModelResponse from './ModelResponse';
 import MasterVerdict from './MasterVerdict';
 import ClarifyingQuestion from './ClarifyingQuestion';
+import FollowUpQuestion from './FollowUpQuestion';
+import MentionDropdown from './MentionDropdown';
+import type { MentionModel } from './MentionDropdown';
 import ThinkingIndicator from './ThinkingIndicator';
 import Button from '../common/Button';
 import { useCouncilStore } from '../../stores/councilStore';
@@ -20,6 +23,11 @@ export default function ChatView() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [entries, setEntries] = useState<DiscussionEntry[]>([]);
   const entriesRef = useRef<DiscussionEntry[]>([]);
+
+  // @ mention state
+  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [selectedMention, setSelectedMention] = useState<MentionModel | null>(null);
 
   const council = useCouncilStore();
   const settings = useSettingsStore((s) => s.settings);
@@ -112,13 +120,66 @@ export default function ChatView() {
     const question = input.trim();
     if (!question) return;
 
-    // Step 1: Allow submission from terminal states (complete, error), not just idle
+    // Close mention dropdown if open
+    setShowMentionDropdown(false);
+    setMentionQuery('');
+
+    // === Follow-up path: user selected a model via @mention ===
+    // Works both when discussion just finished (state 'complete') and when
+    // a completed session was loaded from disk (state 'idle' but entries have a verdict)
+    const hasVerdict = activeSession && entriesRef.current.some(e => e.role === 'master_verdict');
+    if (selectedMention && hasVerdict && (council.state === 'complete' || council.state === 'idle')) {
+      const mention = selectedMention;
+      setSelectedMention(null);
+      setInput('');
+
+      // Extract the actual follow-up question (strip the @DisplayName prefix)
+      const mentionPrefix = `@${mention.displayName} `;
+      const followUpText = question.startsWith(mentionPrefix)
+        ? question.slice(mentionPrefix.length).trim()
+        : question;
+
+      if (!followUpText) return;
+
+      // Pass full discussion history so the model has complete context
+      await council.sendFollowUp(
+        mention.provider,
+        mention.model,
+        mention.displayName,
+        followUpText,
+        entriesRef.current,
+        getApiKey,
+        handleEntryComplete,
+      );
+
+      // Save after follow-up complete
+      updateActiveSession({ discussion: entriesRef.current });
+      try {
+        await saveCurrentSession(settings.sessionSavePath);
+      } catch (err) {
+        console.error('Failed to save follow-up session:', err);
+      }
+      return;
+    }
+
+    // === No @mention but session has a verdict → prompt user to pick a model ===
+    // Instead of starting a brand-new council, keep them in the same session
+    if (!selectedMention && hasVerdict && (council.state === 'complete' || council.state === 'idle')) {
+      // Show the mention dropdown — question stays in input, user picks a model
+      setShowMentionDropdown(true);
+      setMentionQuery('');
+      return;
+    }
+
+    // === New council session path (only when there's no active verdict) ===
+    // Allow submission from terminal states (complete, error), not just idle
     if (council.state !== 'idle' && council.state !== 'complete' && council.state !== 'error') return;
     if (council.state !== 'idle') {
       council.reset();
     }
 
     setInput('');
+    setSelectedMention(null);
     setEntries([]);
     entriesRef.current = [];
 
@@ -139,14 +200,14 @@ export default function ChatView() {
 
     createSession(session);
 
-    // Step 2: Save to disk immediately — session appears in sidebar right away
+    // Save to disk immediately — session appears in sidebar right away
     try {
       await saveCurrentSession(settings.sessionSavePath);
     } catch (err) {
       console.error('Failed to save initial session:', err);
     }
 
-    // Step 5: Generate smart title in the background (fire-and-forget)
+    // Generate smart title in the background (fire-and-forget)
     generateSessionTitle(question);
 
     // Run the council discussion (each entry auto-saves via handleEntryComplete)
@@ -169,7 +230,50 @@ export default function ChatView() {
     }
   };
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setInput(value);
+
+    // Only show @ dropdown when session is complete (verdict delivered)
+    if (council.state === 'complete' || (council.state === 'idle' && entries.length > 0)) {
+      // Check for @ trigger: look for '@' followed by optional filter text
+      const atMatch = value.match(/@(\w*)$/);
+      if (atMatch) {
+        setShowMentionDropdown(true);
+        setMentionQuery(atMatch[1]);
+      } else if (!selectedMention) {
+        setShowMentionDropdown(false);
+        setMentionQuery('');
+      }
+    } else {
+      setShowMentionDropdown(false);
+    }
+  };
+
+  const handleMentionSelect = (model: MentionModel) => {
+    setSelectedMention(model);
+    setShowMentionDropdown(false);
+    setMentionQuery('');
+
+    if (input.includes('@')) {
+      // Normal typing case: user typed "@Gem..." → replace trailing @query with @ModelName
+      const newInput = input.replace(/@\w*$/, `@${model.displayName} `);
+      setInput(newInput);
+    } else {
+      // Auto-triggered case: user submitted without @, dropdown appeared
+      // Prepend @ModelName to the existing question text
+      setInput(`@${model.displayName} ${input}`);
+    }
+
+    // Focus the textarea
+    inputRef.current?.focus();
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Let MentionDropdown handle arrow keys and Enter when visible
+    if (showMentionDropdown && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === 'Escape')) {
+      return; // MentionDropdown's global listener handles these
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
@@ -178,6 +282,7 @@ export default function ChatView() {
 
   const isProcessing = council.state !== 'idle' && council.state !== 'complete' && council.state !== 'error';
   const hasModels = settings.councilModels.length > 0;
+  const canFollowUp = activeSession != null && entries.some(e => e.role === 'master_verdict');
 
   return (
     <div className="flex flex-col h-full">
@@ -264,6 +369,28 @@ export default function ChatView() {
                     <MasterVerdict key={`verdict-${i}`} content={entry.content} />
                   );
                 }
+                if (entry.role === 'follow_up_question') {
+                  return (
+                    <FollowUpQuestion
+                      key={`fq-${i}`}
+                      content={entry.content}
+                      targetProvider={entry.targetProvider}
+                      targetDisplayName={entry.targetDisplayName}
+                    />
+                  );
+                }
+                if (entry.role === 'follow_up_answer') {
+                  return (
+                    <ModelResponse
+                      key={`fa-${i}`}
+                      provider={entry.provider}
+                      model={entry.model}
+                      displayName={entry.displayName}
+                      content={entry.content}
+                      isFollowUp={true}
+                    />
+                  );
+                }
                 return null;
               })}
             </AnimatePresence>
@@ -306,6 +433,23 @@ export default function ChatView() {
               />
             )}
 
+            {council.state === 'follow_up' && council.followUpInProgress && (() => {
+              // Find the last follow-up question entry to get the target model info
+              const lastFQ = [...entriesRef.current].reverse().find(e => e.role === 'follow_up_question');
+              if (!lastFQ || lastFQ.role !== 'follow_up_question') return null;
+              return (
+                <ModelResponse
+                  provider={lastFQ.targetProvider}
+                  model={lastFQ.targetModel}
+                  displayName={lastFQ.targetDisplayName}
+                  content={council.currentStreamContent}
+                  isStreaming={true}
+                  isThinking={!council.currentStreamContent}
+                  isFollowUp={true}
+                />
+              );
+            })()}
+
             {council.state === 'error' && council.error && (
               <div className="px-6 py-4">
                 <div className="p-4 rounded-[var(--radius-md)] bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
@@ -323,15 +467,30 @@ export default function ChatView() {
       <div className="border-t border-[var(--color-border-primary)] bg-[var(--color-bg-primary)] px-6 py-4">
         <div className="max-w-4xl mx-auto">
           <div className="relative flex items-end gap-3 bg-[var(--color-bg-input)] border border-[var(--color-border-primary)] rounded-[var(--radius-lg)] px-4 py-3 focus-within:border-[var(--color-border-focus)] focus-within:ring-1 focus-within:ring-[var(--color-border-focus)] transition-all">
+            {/* Mention dropdown */}
+            {showMentionDropdown && (
+              <MentionDropdown
+                query={mentionQuery}
+                models={activeSession?.councilConfig.models ?? settings.councilModels}
+                masterModel={activeSession?.councilConfig.masterModel ?? settings.masterModel}
+                onSelect={handleMentionSelect}
+                onClose={() => {
+                  setShowMentionDropdown(false);
+                  setMentionQuery('');
+                }}
+              />
+            )}
             <textarea
               ref={inputRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={handleInputChange}
               onKeyDown={handleKeyDown}
               placeholder={
-                hasModels
-                  ? 'Ask the council for advice...'
-                  : 'Configure your models in Settings first...'
+                !hasModels
+                  ? 'Configure your models in Settings first...'
+                  : canFollowUp
+                    ? 'Ask the council... or @mention a model to follow up'
+                    : 'Ask the council for advice...'
               }
               rows={1}
               disabled={isProcessing || !hasModels}
@@ -354,7 +513,7 @@ export default function ChatView() {
           </div>
           {isProcessing && (
             <p className="mt-2 text-xs text-center text-[var(--color-text-tertiary)]">
-              Council is deliberating...
+              {council.state === 'follow_up' ? 'Getting follow-up response...' : 'Council is deliberating...'}
             </p>
           )}
         </div>
