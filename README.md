@@ -77,6 +77,11 @@ You ask a question, and your council of AI models responds one by one — each s
 </p>
 <p align="center"><em>Configure your council — choose from 8 providers, 30+ models, with API keys secured in macOS Keychain</em></p>
 
+<p align="center">
+  <img src="advanced-settings.png" alt="Synod advanced settings showing prompt engineering modes" width="700" />
+</p>
+<p align="center"><em>Control your council with prompt engineering modes</em></p>
+
 ## Supported Providers
 
 | Provider | Models |
