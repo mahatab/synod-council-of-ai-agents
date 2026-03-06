@@ -80,7 +80,7 @@ You ask a question, and your council of AI models responds one by one. In **Sequ
 <p align="center"><em>Configure your council — choose from 8 providers, 30+ models, with API keys secured in your OS credential store</em></p>
 
 <p align="center">
-  <img src="docs/images/screenshots/advanced-settings.png" alt="Synod advanced settings showing prompt engineering modes" width="700" />
+  <img src="docs/images/screenshots/advanced-settings-2.png" alt="Synod advanced settings showing prompt engineering modes" width="700" />
 </p>
 <p align="center"><em>Control your council with prompt engineering modes</em></p>
 
