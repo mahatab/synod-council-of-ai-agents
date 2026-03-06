@@ -18,18 +18,18 @@
 
 ---
 
-Synod is a desktop app for **macOS and Windows** that assembles a **council of AI models** to collaboratively tackle your questions. Multiple models from different providers discuss the topic sequentially — each building on what came before — then a **master model** synthesizes everything into a clear, actionable verdict.
+Synod is a desktop app for **macOS and Windows** that assembles a **council of AI models** to collaboratively tackle your questions. Multiple models from different providers discuss the topic - either sequentially (building on each other) or independently (preventing groupthink) - then a **master model** synthesizes everything into a clear, actionable verdict.
 
 ## How It Works
 <img src="docs/images/pixel-art-flowchart.jpg" alt="Pixel art flowchart showing how Synod works: a user asks a question at the top, five AI council models discuss it sequentially in the middle, a crowned master model delivers the final verdict below, and a looping arrow with an @ symbol shows that users can follow up with any model afterward."/>
 
-You ask a question, and your council of AI models responds one by one — each seeing the full discussion so far. Once everyone has weighed in, a master model synthesizes all perspectives into a clear, actionable verdict. After the verdict, @mention any model to ask follow-up questions with full context.
+You ask a question, and your council of AI models responds one by one. In **Sequential** mode, each model sees the full discussion so far. In **Independent** mode, each model only sees your original question, giving you unbiased perspectives. Once everyone has weighed in, a master model synthesizes all perspectives into a clear, actionable verdict. After the verdict, @mention any model to ask follow-up questions with full context.
 
 ## Features
 
 ### Council Discussion
 - **8 providers, 30 models** — Anthropic, OpenAI, Google, xAI, DeepSeek, Mistral, Together AI, and Cohere
-- **Sequential deliberation** — each model sees the original question plus every previous response
+- **Discussion styles** — Sequential (each model builds on previous responses) or Independent (each model responds without seeing others, preventing groupthink)
 - **Master verdict** — a designated model synthesizes all opinions into a final recommendation
 - **Clarifying questions** — the first council member can ask up to 2 clarifying questions before proceeding
 
@@ -46,6 +46,7 @@ You ask a question, and your council of AI models responds one by one — each s
 ### Discussion Depth
 - **Thorough** — detailed analysis with comprehensive reasoning
 - **Concise** — 2-3 key points per model, optimized for speed and cost
+- Active settings are always visible in the chat view with (i) tooltips explaining each option
 
 ### Session Management
 - Auto-save after every response — never lose a discussion
@@ -63,6 +64,7 @@ You ask a question, and your council of AI models responds one by one — each s
 - **Dark, light, and system themes** with smooth transitions
 - **Drag-and-drop** model reordering
 - **Secure API key storage** — macOS Keychain or Windows Credential Manager
+- **Setup wizard** with built-in API key instructions for each provider
 - Native window with overlay title bar
 
 ## Screenshots
@@ -135,7 +137,8 @@ An Xcode project (`CouncilOfAIAgents.xcodeproj`) is also included with dev and b
 src/                          React + TypeScript frontend
 ├── components/
 │   ├── chat/                 ChatView, ModelResponse, MasterVerdict,
-│   │                         MentionDropdown, FollowUpQuestion, StreamingText
+│   │                         MentionDropdown, FollowUpQuestion, StreamingText,
+│   │                         DiscussionSettingsBar
 │   ├── settings/             ModelManager, ApiKeyManager, Appearance, Advanced
 │   ├── setup/                First-run wizard
 │   └── common/               Button, Toggle, Modal
