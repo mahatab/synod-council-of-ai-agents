@@ -28,7 +28,7 @@ You ask a question, and your council of AI models responds one by one. In **Sequ
 ## Features
 
 ### Council Discussion
-- **8 providers, 30 models** — Anthropic, OpenAI, Google, xAI, DeepSeek, Mistral, Together AI, and Cohere
+- **8 providers, 29 models** — Anthropic, OpenAI, Google, xAI, DeepSeek, Mistral, Together AI, and Cohere
 - **Discussion styles** — Sequential (each model builds on previous responses) or Independent (each model responds without seeing others, preventing groupthink)
 - **Master verdict** — a designated model synthesizes all opinions into a final recommendation
 - **Clarifying questions** — the first council member can ask up to 2 clarifying questions before proceeding
@@ -91,7 +91,7 @@ You ask a question, and your council of AI models responds one by one. In **Sequ
 | Provider | Models |
 |----------|--------|
 | **Anthropic** | Claude Opus 4.6, Sonnet 4.6, Sonnet 4.5, Haiku 4.5 |
-| **OpenAI** | GPT-5.2, GPT-5.2 Pro, GPT-4.1, GPT-4.1 Mini, GPT-4.1 Nano, GPT-4o, GPT-4o Mini, o3, o3-mini, o4-mini |
+| **OpenAI** | GPT-5.2, GPT-4.1, GPT-4.1 Mini, GPT-4.1 Nano, GPT-4o, GPT-4o Mini, o3, o3-mini, o4-mini |
 | **Google** | Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 2.5 Flash Lite |
 | **xAI** | Grok-4, Grok-3, Grok-3 Mini |
 | **DeepSeek** | DeepSeek V3 (Chat), DeepSeek R1 (Reasoner) |

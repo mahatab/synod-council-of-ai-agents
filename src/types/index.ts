@@ -179,7 +179,6 @@ export const PROVIDERS: ProviderInfo[] = [
     keychainService: 'com.council-of-ai-agents.openai',
     models: [
       { id: 'gpt-5.2', name: 'GPT-5.2' },
-      { id: 'gpt-5.2-pro', name: 'GPT-5.2 Pro' },
       { id: 'gpt-4.1', name: 'GPT-4.1' },
       { id: 'gpt-4.1-mini', name: 'GPT-4.1 Mini' },
       { id: 'gpt-4.1-nano', name: 'GPT-4.1 Nano' },
