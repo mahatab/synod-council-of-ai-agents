@@ -3674,7 +3674,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "synod"
+name = "synode"
 version = "0.1.4"
 dependencies = [
  "anyhow",

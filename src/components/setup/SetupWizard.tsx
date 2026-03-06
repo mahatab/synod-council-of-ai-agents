@@ -116,11 +116,11 @@ export default function SetupWizard() {
               <div className="text-center">
                 <img
                   src="/synod-icon.png"
-                  alt="Synod"
+                  alt="Synode"
                   className="w-16 h-16 rounded-2xl mx-auto mb-6"
                 />
                 <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-1">
-                  Welcome to Synod
+                  Welcome to Synode
                 </h1>
                 <p className="text-sm text-[var(--color-text-tertiary)] mb-3">
                   Council of AI Agents

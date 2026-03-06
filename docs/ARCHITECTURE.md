@@ -2,7 +2,7 @@
 
 ## Overview
 
-Council of AI Agents (Synod) is a Tauri v2 desktop application with a Rust backend and React frontend. It orchestrates discussions across 8 AI providers, where council models discuss a user's question sequentially before a master model delivers a final verdict.
+Council of AI Agents (Synode) is a Tauri v2 desktop application with a Rust backend and React frontend. It orchestrates discussions across 8 AI providers, where council models discuss a user's question sequentially before a master model delivers a final verdict.
 
 ```
 ┌──────────────────────────────────────────────────────────┐

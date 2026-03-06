@@ -62,8 +62,8 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: Synod ${{ github.ref_name }}
-          releaseBody: 'See the assets below to download and install Synod.'
+          releaseName: Synode ${{ github.ref_name }}
+          releaseBody: 'See the assets below to download and install Synode.'
           releaseDraft: false
           prerelease: false
 
@@ -104,7 +104,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: Synod ${{ github.ref_name }}
-          releaseBody: 'See the assets below to download and install Synod.'
+          releaseName: Synode ${{ github.ref_name }}
+          releaseBody: 'See the assets below to download and install Synode.'
           releaseDraft: false
           prerelease: false

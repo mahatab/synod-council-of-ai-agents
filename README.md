@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/images/synod.jpg" alt="Synod" width="180" />
+  <img src="docs/images/synod.jpg" alt="Synode" width="180" />
 </p>
 
-<h1 align="center">Synod</h1>
+<h1 align="center">Synode</h1>
 
 <p align="center">
   <strong>A council of AI models, one definitive verdict.</strong>
@@ -18,10 +18,10 @@
 
 ---
 
-Synod is a desktop app for **macOS and Windows** that assembles a **council of AI models** to collaboratively tackle your questions. Multiple models from different providers discuss the topic - either sequentially (building on each other) or independently (preventing groupthink) - then a **master model** synthesizes everything into a clear, actionable verdict.
+Synode is a desktop app for **macOS and Windows** that assembles a **council of AI models** to collaboratively tackle your questions. Multiple models from different providers discuss the topic - either sequentially (building on each other) or independently (preventing groupthink) - then a **master model** synthesizes everything into a clear, actionable verdict.
 
 ## How It Works
-<img src="docs/images/pixel-art-flowchart.jpg" alt="Pixel art flowchart showing how Synod works: a user asks a question at the top, five AI council models discuss it sequentially in the middle, a crowned master model delivers the final verdict below, and a looping arrow with an @ symbol shows that users can follow up with any model afterward."/>
+<img src="docs/images/pixel-art-flowchart.jpg" alt="Pixel art flowchart showing how Synode works: a user asks a question at the top, five AI council models discuss it sequentially in the middle, a crowned master model delivers the final verdict below, and a looping arrow with an @ symbol shows that users can follow up with any model afterward."/>
 
 You ask a question, and your council of AI models responds one by one. In **Sequential** mode (as shown above), each model sees the full discussion so far. In **Independent** mode, each model only sees your original question, giving you unbiased perspectives. Once everyone has weighed in, a master model synthesizes all perspectives into a clear, actionable verdict. After the verdict, @mention any model to ask follow-up questions with full context.
 
@@ -70,17 +70,17 @@ You ask a question, and your council of AI models responds one by one. In **Sequ
 ## Screenshots
 
 <p align="center">
-  <img src="docs/images/screenshots/hero.png" alt="Synod app showing a council discussion with multiple AI models and a master verdict" width="700" />
+  <img src="docs/images/screenshots/hero.png" alt="Synode app showing a council discussion with multiple AI models and a master verdict" width="700" />
 </p>
 <p align="center"><em>Many models, one verdict — watch your council think through the problem, then @mention anyone to keep talking</em></p>
 
 <p align="center">
-  <img src="docs/images/screenshots/settings.png" alt="Synod settings panel showing model configuration" width="700" />
+  <img src="docs/images/screenshots/settings.png" alt="Synode settings panel showing model configuration" width="700" />
 </p>
 <p align="center"><em>Configure your council — choose from 8 providers, 30+ models, with API keys secured in your OS credential store</em></p>
 
 <p align="center">
-  <img src="docs/images/screenshots/advanced-settings-2.png" alt="Synod advanced settings showing prompt engineering modes" width="700" />
+  <img src="docs/images/screenshots/advanced-settings-2.png" alt="Synode advanced settings showing prompt engineering modes" width="700" />
 </p>
 <p align="center"><em>Control your council with prompt engineering modes</em></p>
 
@@ -129,9 +129,9 @@ A setup wizard will guide you through configuring your council models and API ke
 cargo tauri build
 ```
 
-**macOS** — produces `src-tauri/target/release/bundle/macos/Synod.app` and `.dmg`
+**macOS** — produces `src-tauri/target/release/bundle/macos/Synode.app` and `.dmg`
 
-**Windows** — produces `src-tauri/target/release/bundle/nsis/Synod_x.x.x_x64-setup.exe` and `.msi`
+**Windows** — produces `src-tauri/target/release/bundle/nsis/Synode_x.x.x_x64-setup.exe` and `.msi`
 
 An Xcode project (`CouncilOfAIAgents.xcodeproj`) is also included with dev and build schemes for macOS.
 
