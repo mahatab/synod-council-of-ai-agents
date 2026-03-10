@@ -84,7 +84,7 @@ IDLE ──► STREAMING ──► IDLE
 
 1. **User Input** — User asks a question
 2. **System Prompt Generation** — Master model generates tailored system prompts for each council member (upfront mode) or per-turn (dynamic mode)
-3. **Model Turns** — Each council model responds sequentially, seeing all previous responses. The first model may ask up to 2 clarifying questions
+3. **Model Turns** — In **Sequential** mode, each council model responds one by one, seeing all previous responses. In **Independent** mode, the first model runs sequentially (may ask clarifying questions), then remaining models stream their responses **in parallel** via `Promise.all` with per-model completion tracking. A Council Progress overlay shows real-time status for each model
 4. **Master Verdict** — Master model synthesizes all responses into a final verdict (thorough or concise based on discussion depth setting)
 5. **Follow-Up** — User can `@mention` any council member or the master model for follow-up questions with full discussion context
 
@@ -124,7 +124,7 @@ IDLE ──► STREAMING ──► IDLE
 
 ### Stores (Zustand)
 
-- **councilStore** — Orchestrates the entire discussion state machine: model turns, streaming, clarifying Q&A, master verdict, and follow-up questions
+- **councilStore** — Orchestrates the entire discussion state machine: model turns, sequential/parallel streaming, clarifying Q&A, master verdict, and follow-up questions. Tracks per-model parallel streams via `parallelStreams: Map<number, { content: string; done: boolean }>`
 - **directChatStore** — Manages 1-on-1 conversations: streaming state, message send/receive, error handling
 - **settingsStore** — Loads/saves `AppSettings` (council models, master model, theme, system prompt mode, discussion depth, cursor style, session path, app mode)
 - **sessionStore** — Session CRUD: create, load, list, save, delete. Groups sessions by date in the sidebar. Filters by active app mode (council vs direct chat)
@@ -132,11 +132,12 @@ IDLE ──► STREAMING ──► IDLE
 ### Key Components
 
 - **SetupWizard** — First-run flow: welcome → model selection → API keys → master model → complete
-- **ChatView** — Council discussion interface with streaming text, `@mention` dropdown for follow-ups
+- **ChatView** — Council discussion interface with sequential and parallel streaming, `@mention` dropdown for follow-ups
 - **DirectChatView** — 1-on-1 chat interface with multi-turn conversation history
 - **AgentPicker** — Searchable model selection grid with provider color coding and API key availability
 - **ModelResponse** / **MasterVerdict** — Display model outputs with provider colors, copy buttons
-- **ClarifyingQuestion** — UI for answering the first model's clarifying questions
+- **ClarifyingQuestion** — Emerald-themed UI for answering the first model's clarifying questions, with markdown rendering and highlighted list items
+- **ParallelStatusOverlay** — Transparent floating status bar showing real-time completion status for each parallel model (thinking/streaming/done/error) with animated provider-colored indicators
 - **SettingsModal** — Tabbed settings: Models (drag-drop reorder), API Keys, Appearance, Advanced, Sessions
 - **Sidebar** — Session history grouped by date (Today, Yesterday, Previous 7 Days, etc.), filtered by active mode
 - **ModeToggle** — Switches between Council and Direct Chat modes
@@ -148,6 +149,7 @@ interface AppSettings {
   councilModels: ModelConfig[];         // Ordered list of council models
   masterModel: MasterModelConfig;       // Model that generates prompts and verdicts
   systemPromptMode: 'upfront' | 'dynamic';
+  discussionStyle: 'sequential' | 'independent'; // Independent enables parallel execution
   discussionDepth: 'thorough' | 'concise';
   theme: 'light' | 'dark' | 'system';
   cursorStyle: 'ripple' | 'breathing' | 'orbit' | 'multi';

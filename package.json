@@ -1,7 +1,7 @@
 {
   "name": "council-of-ai-agents",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.3.1",
   "description": "A council of AI models that collaboratively help you make informed, fact-based decisions",
   "type": "module",
   "scripts": {
