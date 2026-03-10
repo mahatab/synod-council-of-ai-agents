@@ -11,6 +11,7 @@ import MentionDropdown from './MentionDropdown';
 import type { MentionModel } from './MentionDropdown';
 import DiscussionSettingsBar from './DiscussionSettingsBar';
 import ThinkingIndicator from './ThinkingIndicator';
+import ParallelStatusOverlay from './ParallelStatusOverlay';
 import Button from '../common/Button';
 import { useCouncilStore } from '../../stores/councilStore';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -67,7 +68,7 @@ export default function ChatView() {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [entries, council.currentStreamContent, council.state]);
+  }, [entries, council.currentStreamContent, council.state, council.parallelStreams]);
 
   // Incremental auto-save after each entry
   const handleEntryComplete = useCallback(
@@ -393,6 +394,32 @@ export default function ChatView() {
                 content={council.currentStreamContent}
                 isStreaming={true}
                 isThinking={!council.currentStreamContent}
+              />
+            )}
+
+            {/* Parallel streaming content (independent mode) */}
+            {council.state === 'model_turn' && council.parallelStreams.size > 0 && (
+              Array.from(council.parallelStreams.entries())
+                .sort(([a], [b]) => a - b)
+                .map(([modelIndex, { content, done }]) => (
+                  <ModelResponse
+                    key={`parallel-${modelIndex}`}
+                    provider={settings.councilModels[modelIndex]?.provider || ''}
+                    model={settings.councilModels[modelIndex]?.model || ''}
+                    displayName={settings.councilModels[modelIndex]?.displayName || ''}
+                    content={content}
+                    isStreaming={!done}
+                    isThinking={!content && !done}
+                  />
+                ))
+            )}
+
+            {/* Parallel status overlay (independent mode) */}
+            {council.state === 'model_turn' && council.parallelStreams.size > 0 && (
+              <ParallelStatusOverlay
+                parallelStreams={council.parallelStreams}
+                models={settings.councilModels}
+                model0Complete={entries.some(e => e.role === 'model')}
               />
             )}
 

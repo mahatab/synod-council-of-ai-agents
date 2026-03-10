@@ -298,6 +298,40 @@ html, body, #root {
   animation: model-response-enter 0.3s var(--ease-out-expo) both;
 }
 
+/* Clarifying question — highlight numbered questions */
+.clarifying-question-content .markdown-content ol,
+.clarifying-question-content .markdown-content ul {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.75em 0;
+}
+
+.clarifying-question-content .markdown-content ol > li,
+.clarifying-question-content .markdown-content ul > li {
+  background: color-mix(in srgb, #10B981 8%, transparent);
+  border-left: 3px solid #10B981;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  padding: 0.625em 0.875em;
+  margin-bottom: 0.5em;
+  font-weight: 500;
+}
+
+.dark .clarifying-question-content .markdown-content ol > li,
+.dark .clarifying-question-content .markdown-content ul > li {
+  background: color-mix(in srgb, #10B981 12%, transparent);
+  border-left-color: #34D399;
+}
+
+.clarifying-question-content .markdown-content ol > li strong,
+.clarifying-question-content .markdown-content ul > li strong {
+  color: #059669;
+}
+
+.dark .clarifying-question-content .markdown-content ol > li strong,
+.dark .clarifying-question-content .markdown-content ul > li strong {
+  color: #6EE7B7;
+}
+
 /* Selection color */
 ::selection {
   background-color: color-mix(in srgb, var(--color-accent) 30%, transparent);

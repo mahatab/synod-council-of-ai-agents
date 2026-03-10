@@ -22,6 +22,7 @@ interface CouncilStoreState {
   systemPrompts: Map<string, string>;
   clarifyingExchanges: ClarifyingExchange[];
   waitingForClarification: boolean;
+  parallelStreams: Map<number, { content: string; done: boolean }>;
   followUpInProgress: boolean;
   error: string | null;
 
@@ -59,6 +60,7 @@ export const useCouncilStore = create<CouncilStoreState>((set, get) => ({
   systemPrompts: new Map(),
   clarifyingExchanges: [],
   waitingForClarification: false,
+  parallelStreams: new Map(),
   followUpInProgress: false,
   error: null,
 
@@ -176,206 +178,510 @@ ${JSON.stringify(
       }
     }
 
-    // Process each model sequentially
-    for (let i = 0; i < models.length; i++) {
-      const model = models[i];
-      set({ state: 'model_turn', currentModelIndex: i });
+    if (discussionStyle === 'independent') {
+      // === PARALLEL EXECUTION FOR INDEPENDENT MODE ===
+      // First model runs sequentially (may ask clarifying questions),
+      // then remaining models run in parallel for faster results.
 
-      try {
-        const apiKey = await getApiKey(
-          `com.council-of-ai-agents.${model.provider}`,
-        );
-        if (!apiKey) {
-          set({
-            state: 'error',
-            error: `No API key found for ${model.displayName} (${model.provider})`,
-          });
-          return;
-        }
+      // Process first model sequentially
+      if (models.length > 0) {
+        const model = models[0];
+        set({ state: 'model_turn', currentModelIndex: 0 });
 
-        // Build messages context
-        const messages: ChatMessage[] = buildContextMessages(
-          userQuestion,
-          discussionSoFar,
-          i === 0,
-          discussionStyle,
-        );
-
-        // Get system prompt
-        const systemPromptKey = `${model.provider}:${model.model}`;
-        let systemPrompt =
-          get().systemPrompts.get(systemPromptKey) || getDefaultSystemPrompt(model, i === 0, discussionDepth, discussionStyle);
-
-        // Dynamic mode: generate prompt for this model
-        if (systemPromptMode === 'dynamic' && i > 0) {
-          try {
-            const masterApiKey = await getApiKey(
-              `com.council-of-ai-agents.${masterModel.provider}`,
-            );
-            if (masterApiKey) {
-              const dynamicStreamId = uuidv4();
-              const dynamicUnlisten = await tauri.onStreamToken(
-                dynamicStreamId,
-                () => {},
-              );
-              const dynamicResult = await tauri.streamChat(
-                masterModel.provider,
-                masterModel.model,
-                [
-                  {
-                    role: 'user',
-                    content: discussionStyle === 'independent'
-                      ? `Generate a system prompt for ${model.displayName} to independently analyze: "${userQuestion}". The model is responding independently and will NOT see other models' responses. It should provide its own standalone analysis. Return only the system prompt text, no JSON.`
-                      : `Generate a system prompt for ${model.displayName} to analyze: "${userQuestion}". Previous discussion: ${JSON.stringify(discussionSoFar)}. The model should provide a unique perspective. Return only the system prompt text, no JSON.`,
-                  },
-                ],
-                'Generate a concise system prompt. Return only the prompt text.',
-                masterApiKey,
-                dynamicStreamId,
-              );
-              dynamicUnlisten();
-              systemPrompt = dynamicResult.content;
-              // Accumulate dynamic prompt gen usage with master usage
-              if (dynamicResult.usage) {
-                if (!masterPromptGenUsage) {
-                  masterPromptGenUsage = { inputTokens: 0, outputTokens: 0 };
-                }
-                masterPromptGenUsage.inputTokens += dynamicResult.usage.inputTokens;
-                masterPromptGenUsage.outputTokens += dynamicResult.usage.outputTokens;
-              }
-            }
-          } catch {
-            // Fall back to default prompt
-          }
-        }
-
-        // Stream the model's response
-        const streamId = uuidv4();
-        set({ currentStreamId: streamId, currentStreamContent: '' });
-
-        const unlisten = await tauri.onStreamToken(streamId, (token) => {
-          if (!token.done && !token.error) {
-            set((s) => ({
-              currentStreamContent: s.currentStreamContent + token.token,
-            }));
-          }
-        });
-
-        const result = await tauri.streamChat(
-          model.provider,
-          model.model,
-          messages,
-          systemPrompt,
-          apiKey,
-          streamId,
-        );
-
-        unlisten();
-        set({ currentStreamId: null, currentStreamContent: '' });
-
-        // Check if first model asked a clarifying question
-        if (i === 0 && looksLikeClarifyingQuestion(result.content)) {
-          set({
-            state: 'clarifying_qa',
-            waitingForClarification: true,
-            clarifyingExchanges: [{ question: result.content, answer: '' }],
-          });
-
-          // Wait for user's clarification answer
-          await new Promise<void>((resolve) => {
-            const checkInterval = setInterval(() => {
-              const current = get();
-              if (!current.waitingForClarification) {
-                clearInterval(checkInterval);
-                resolve();
-              }
-            }, 200);
-          });
-
-          const exchanges = get().clarifyingExchanges;
-          const clarifyAnswer = exchanges[exchanges.length - 1]?.answer;
-
-          if (clarifyAnswer) {
-            // Get follow-up response from the first model
-            const followUpMessages: ChatMessage[] = [
-              ...messages,
-              { role: 'assistant', content: result.content },
-              { role: 'user', content: clarifyAnswer },
-            ];
-
-            const followUpStreamId = uuidv4();
+        try {
+          const apiKey = await getApiKey(
+            `com.council-of-ai-agents.${model.provider}`,
+          );
+          if (!apiKey) {
             set({
-              state: 'model_turn',
-              currentStreamId: followUpStreamId,
-              currentStreamContent: '',
+              state: 'error',
+              error: `No API key found for ${model.displayName} (${model.provider})`,
+            });
+            return;
+          }
+
+          const messages: ChatMessage[] = buildContextMessages(
+            userQuestion, discussionSoFar, true, discussionStyle,
+          );
+
+          const systemPromptKey = `${model.provider}:${model.model}`;
+          let systemPrompt =
+            get().systemPrompts.get(systemPromptKey) || getDefaultSystemPrompt(model, true, discussionDepth, discussionStyle);
+
+          // Dynamic mode: first model doesn't need dynamic prompt (no prior context)
+
+          const streamId = uuidv4();
+          set({ currentStreamId: streamId, currentStreamContent: '' });
+
+          const unlisten = await tauri.onStreamToken(streamId, (token) => {
+            if (!token.done && !token.error) {
+              set((s) => ({
+                currentStreamContent: s.currentStreamContent + token.token,
+              }));
+            }
+          });
+
+          const result = await tauri.streamChat(
+            model.provider, model.model, messages, systemPrompt, apiKey, streamId,
+          );
+
+          unlisten();
+          set({ currentStreamId: null, currentStreamContent: '', currentModelIndex: -1 });
+
+          // Check if first model asked a clarifying question
+          if (looksLikeClarifyingQuestion(result.content)) {
+            set({
+              state: 'clarifying_qa',
+              waitingForClarification: true,
+              clarifyingExchanges: [{ question: result.content, answer: '' }],
             });
 
-            const followUpUnlisten = await tauri.onStreamToken(
-              followUpStreamId,
-              (token) => {
-                if (!token.done && !token.error) {
-                  set((s) => ({
-                    currentStreamContent: s.currentStreamContent + token.token,
-                  }));
+            await new Promise<void>((resolve) => {
+              const checkInterval = setInterval(() => {
+                const current = get();
+                if (!current.waitingForClarification) {
+                  clearInterval(checkInterval);
+                  resolve();
                 }
-              },
-            );
+              }, 200);
+            });
 
-            const followUpResult = await tauri.streamChat(
-              model.provider,
-              model.model,
-              followUpMessages,
-              systemPrompt,
-              apiKey,
-              followUpStreamId,
-            );
+            const exchanges = get().clarifyingExchanges;
+            const clarifyAnswer = exchanges[exchanges.length - 1]?.answer;
 
-            followUpUnlisten();
-            set({ currentStreamId: null, currentStreamContent: '' });
+            if (clarifyAnswer) {
+              const followUpMessages: ChatMessage[] = [
+                ...messages,
+                { role: 'assistant', content: result.content },
+                { role: 'user', content: clarifyAnswer },
+              ];
 
-            // Combine initial question usage + follow-up usage
-            const combinedUsage = combineUsage(result.usage, followUpResult.usage);
+              const followUpStreamId = uuidv4();
+              set({
+                state: 'model_turn',
+                currentStreamId: followUpStreamId,
+                currentStreamContent: '',
+              });
 
+              const followUpUnlisten = await tauri.onStreamToken(
+                followUpStreamId,
+                (token) => {
+                  if (!token.done && !token.error) {
+                    set((s) => ({
+                      currentStreamContent: s.currentStreamContent + token.token,
+                    }));
+                  }
+                },
+              );
+
+              const followUpResult = await tauri.streamChat(
+                model.provider, model.model, followUpMessages, systemPrompt, apiKey, followUpStreamId,
+              );
+
+              followUpUnlisten();
+              set({ currentStreamId: null, currentStreamContent: '' });
+
+              const combinedUsage = combineUsage(result.usage, followUpResult.usage);
+
+              const entry: DiscussionEntry = {
+                role: 'model',
+                provider: model.provider,
+                model: model.model,
+                displayName: model.displayName,
+                systemPrompt,
+                content: followUpResult.content,
+                clarifyingExchange: exchanges.map((e) => ({
+                  question: e.question,
+                  answer: e.answer,
+                })),
+                usage: combinedUsage,
+              };
+              discussionSoFar.push(entry);
+              onEntryComplete(entry);
+            }
+          } else {
             const entry: DiscussionEntry = {
               role: 'model',
               provider: model.provider,
               model: model.model,
               displayName: model.displayName,
               systemPrompt,
-              content: followUpResult.content,
-              clarifyingExchange: exchanges.map((e) => ({
-                question: e.question,
-                answer: e.answer,
-              })),
-              usage: combinedUsage,
+              content: result.content,
+              usage: result.usage,
             };
             discussionSoFar.push(entry);
             onEntryComplete(entry);
           }
-        } else {
+        } catch (err) {
+          const entry: DiscussionEntry = {
+            role: 'model',
+            provider: models[0].provider,
+            model: models[0].model,
+            displayName: models[0].displayName,
+            content: `[Error: Failed to get response - ${err}]`,
+          };
+          discussionSoFar.push(entry);
+          onEntryComplete(entry);
+        }
+      }
+
+      // Process remaining models in parallel
+      if (models.length > 1) {
+        const remainingModels = models.slice(1);
+
+        // Phase 1: Pre-fetch API keys and generate dynamic prompts (before parallel streaming)
+        const modelPrep = await Promise.all(
+          remainingModels.map(async (model, arrayIdx) => {
+            const modelIndex = arrayIdx + 1;
+            try {
+              const apiKey = await getApiKey(
+                `com.council-of-ai-agents.${model.provider}`,
+              );
+              if (!apiKey) {
+                throw new Error(`No API key found for ${model.displayName} (${model.provider})`);
+              }
+
+              const systemPromptKey = `${model.provider}:${model.model}`;
+              let systemPrompt =
+                get().systemPrompts.get(systemPromptKey) || getDefaultSystemPrompt(model, false, discussionDepth, 'independent');
+
+              // Dynamic mode: generate prompt via master model
+              if (systemPromptMode === 'dynamic') {
+                try {
+                  const masterApiKey = await getApiKey(
+                    `com.council-of-ai-agents.${masterModel.provider}`,
+                  );
+                  if (masterApiKey) {
+                    const dynamicStreamId = uuidv4();
+                    const dynamicUnlisten = await tauri.onStreamToken(dynamicStreamId, () => {});
+                    const dynamicResult = await tauri.streamChat(
+                      masterModel.provider,
+                      masterModel.model,
+                      [{
+                        role: 'user',
+                        content: `Generate a system prompt for ${model.displayName} to independently analyze: "${userQuestion}". The model is responding independently and will NOT see other models' responses. It should provide its own standalone analysis. Return only the system prompt text, no JSON.`,
+                      }],
+                      'Generate a concise system prompt. Return only the prompt text.',
+                      masterApiKey,
+                      dynamicStreamId,
+                    );
+                    dynamicUnlisten();
+                    systemPrompt = dynamicResult.content;
+                    if (dynamicResult.usage) {
+                      if (!masterPromptGenUsage) {
+                        masterPromptGenUsage = { inputTokens: 0, outputTokens: 0 };
+                      }
+                      masterPromptGenUsage.inputTokens += dynamicResult.usage.inputTokens;
+                      masterPromptGenUsage.outputTokens += dynamicResult.usage.outputTokens;
+                    }
+                  }
+                } catch {
+                  // Fall back to default prompt
+                }
+              }
+
+              return { model, modelIndex, apiKey, systemPrompt, error: null as string | null };
+            } catch (err) {
+              return { model, modelIndex, apiKey: null as string | null, systemPrompt: '', error: String(err) };
+            }
+          }),
+        );
+
+        // Phase 2: Fire all model API calls simultaneously
+        const initialStreams = new Map<number, { content: string; done: boolean }>();
+        for (let idx = 1; idx < models.length; idx++) {
+          initialStreams.set(idx, { content: '', done: false });
+        }
+        set({ state: 'model_turn', currentModelIndex: -1, parallelStreams: initialStreams });
+
+        const messages: ChatMessage[] = buildContextMessages(
+          userQuestion, discussionSoFar, false, 'independent',
+        );
+
+        const parallelResults = await Promise.all(
+          modelPrep.map(async (prep) => {
+            if (prep.error !== null || !prep.apiKey) {
+              // Mark as done on error
+              set((s) => {
+                const m = new Map(s.parallelStreams);
+                m.set(prep.modelIndex, { content: '', done: true });
+                return { parallelStreams: m };
+              });
+              return { model: prep.model, modelIndex: prep.modelIndex, result: null as null | { content: string; usage?: UsageData }, systemPrompt: prep.systemPrompt, error: prep.error || 'No API key' };
+            }
+
+            try {
+              const streamId = uuidv4();
+              const unlisten = await tauri.onStreamToken(streamId, (token) => {
+                if (!token.done && !token.error) {
+                  set((s) => {
+                    const m = new Map(s.parallelStreams);
+                    const current = m.get(prep.modelIndex);
+                    m.set(prep.modelIndex, { content: (current?.content || '') + token.token, done: false });
+                    return { parallelStreams: m };
+                  });
+                }
+              });
+
+              const result = await tauri.streamChat(
+                prep.model.provider, prep.model.model, messages, prep.systemPrompt, prep.apiKey, streamId,
+              );
+              unlisten();
+
+              // Mark this model as done streaming
+              set((s) => {
+                const m = new Map(s.parallelStreams);
+                const current = m.get(prep.modelIndex);
+                if (current) {
+                  m.set(prep.modelIndex, { ...current, done: true });
+                }
+                return { parallelStreams: m };
+              });
+
+              return { model: prep.model, modelIndex: prep.modelIndex, result, systemPrompt: prep.systemPrompt, error: null as string | null };
+            } catch (err) {
+              // Mark as done on error
+              set((s) => {
+                const m = new Map(s.parallelStreams);
+                const current = m.get(prep.modelIndex);
+                m.set(prep.modelIndex, { content: current?.content || '', done: true });
+                return { parallelStreams: m };
+              });
+              return { model: prep.model, modelIndex: prep.modelIndex, result: null as null | { content: string; usage?: UsageData }, systemPrompt: prep.systemPrompt, error: String(err) };
+            }
+          }),
+        );
+
+        // Clear parallel streams
+        set({ parallelStreams: new Map() });
+
+        // Add entries in model order
+        for (const r of parallelResults) {
+          if (r.error === null && r.result) {
+            const entry: DiscussionEntry = {
+              role: 'model',
+              provider: r.model.provider,
+              model: r.model.model,
+              displayName: r.model.displayName,
+              systemPrompt: r.systemPrompt,
+              content: r.result.content,
+              usage: r.result.usage,
+            };
+            discussionSoFar.push(entry);
+            onEntryComplete(entry);
+          } else {
+            const entry: DiscussionEntry = {
+              role: 'model',
+              provider: r.model.provider,
+              model: r.model.model,
+              displayName: r.model.displayName,
+              content: `[Error: Failed to get response - ${r.error}]`,
+            };
+            discussionSoFar.push(entry);
+            onEntryComplete(entry);
+          }
+        }
+      }
+    } else {
+      // === SEQUENTIAL EXECUTION ===
+      for (let i = 0; i < models.length; i++) {
+        const model = models[i];
+        set({ state: 'model_turn', currentModelIndex: i });
+
+        try {
+          const apiKey = await getApiKey(
+            `com.council-of-ai-agents.${model.provider}`,
+          );
+          if (!apiKey) {
+            set({
+              state: 'error',
+              error: `No API key found for ${model.displayName} (${model.provider})`,
+            });
+            return;
+          }
+
+          // Build messages context
+          const messages: ChatMessage[] = buildContextMessages(
+            userQuestion,
+            discussionSoFar,
+            i === 0,
+            discussionStyle,
+          );
+
+          // Get system prompt
+          const systemPromptKey = `${model.provider}:${model.model}`;
+          let systemPrompt =
+            get().systemPrompts.get(systemPromptKey) || getDefaultSystemPrompt(model, i === 0, discussionDepth, discussionStyle);
+
+          // Dynamic mode: generate prompt for this model
+          if (systemPromptMode === 'dynamic' && i > 0) {
+            try {
+              const masterApiKey = await getApiKey(
+                `com.council-of-ai-agents.${masterModel.provider}`,
+              );
+              if (masterApiKey) {
+                const dynamicStreamId = uuidv4();
+                const dynamicUnlisten = await tauri.onStreamToken(
+                  dynamicStreamId,
+                  () => {},
+                );
+                const dynamicResult = await tauri.streamChat(
+                  masterModel.provider,
+                  masterModel.model,
+                  [
+                    {
+                      role: 'user',
+                      content: `Generate a system prompt for ${model.displayName} to analyze: "${userQuestion}". Previous discussion: ${JSON.stringify(discussionSoFar)}. The model should provide a unique perspective. Return only the system prompt text, no JSON.`,
+                    },
+                  ],
+                  'Generate a concise system prompt. Return only the prompt text.',
+                  masterApiKey,
+                  dynamicStreamId,
+                );
+                dynamicUnlisten();
+                systemPrompt = dynamicResult.content;
+                // Accumulate dynamic prompt gen usage with master usage
+                if (dynamicResult.usage) {
+                  if (!masterPromptGenUsage) {
+                    masterPromptGenUsage = { inputTokens: 0, outputTokens: 0 };
+                  }
+                  masterPromptGenUsage.inputTokens += dynamicResult.usage.inputTokens;
+                  masterPromptGenUsage.outputTokens += dynamicResult.usage.outputTokens;
+                }
+              }
+            } catch {
+              // Fall back to default prompt
+            }
+          }
+
+          // Stream the model's response
+          const streamId = uuidv4();
+          set({ currentStreamId: streamId, currentStreamContent: '' });
+
+          const unlisten = await tauri.onStreamToken(streamId, (token) => {
+            if (!token.done && !token.error) {
+              set((s) => ({
+                currentStreamContent: s.currentStreamContent + token.token,
+              }));
+            }
+          });
+
+          const result = await tauri.streamChat(
+            model.provider,
+            model.model,
+            messages,
+            systemPrompt,
+            apiKey,
+            streamId,
+          );
+
+          unlisten();
+          set({ currentStreamId: null, currentStreamContent: '' });
+
+          // Check if first model asked a clarifying question
+          if (i === 0 && looksLikeClarifyingQuestion(result.content)) {
+            set({
+              state: 'clarifying_qa',
+              waitingForClarification: true,
+              clarifyingExchanges: [{ question: result.content, answer: '' }],
+            });
+
+            // Wait for user's clarification answer
+            await new Promise<void>((resolve) => {
+              const checkInterval = setInterval(() => {
+                const current = get();
+                if (!current.waitingForClarification) {
+                  clearInterval(checkInterval);
+                  resolve();
+                }
+              }, 200);
+            });
+
+            const exchanges = get().clarifyingExchanges;
+            const clarifyAnswer = exchanges[exchanges.length - 1]?.answer;
+
+            if (clarifyAnswer) {
+              // Get follow-up response from the first model
+              const followUpMessages: ChatMessage[] = [
+                ...messages,
+                { role: 'assistant', content: result.content },
+                { role: 'user', content: clarifyAnswer },
+              ];
+
+              const followUpStreamId = uuidv4();
+              set({
+                state: 'model_turn',
+                currentStreamId: followUpStreamId,
+                currentStreamContent: '',
+              });
+
+              const followUpUnlisten = await tauri.onStreamToken(
+                followUpStreamId,
+                (token) => {
+                  if (!token.done && !token.error) {
+                    set((s) => ({
+                      currentStreamContent: s.currentStreamContent + token.token,
+                    }));
+                  }
+                },
+              );
+
+              const followUpResult = await tauri.streamChat(
+                model.provider,
+                model.model,
+                followUpMessages,
+                systemPrompt,
+                apiKey,
+                followUpStreamId,
+              );
+
+              followUpUnlisten();
+              set({ currentStreamId: null, currentStreamContent: '' });
+
+              // Combine initial question usage + follow-up usage
+              const combinedUsage = combineUsage(result.usage, followUpResult.usage);
+
+              const entry: DiscussionEntry = {
+                role: 'model',
+                provider: model.provider,
+                model: model.model,
+                displayName: model.displayName,
+                systemPrompt,
+                content: followUpResult.content,
+                clarifyingExchange: exchanges.map((e) => ({
+                  question: e.question,
+                  answer: e.answer,
+                })),
+                usage: combinedUsage,
+              };
+              discussionSoFar.push(entry);
+              onEntryComplete(entry);
+            }
+          } else {
+            const entry: DiscussionEntry = {
+              role: 'model',
+              provider: model.provider,
+              model: model.model,
+              displayName: model.displayName,
+              systemPrompt,
+              content: result.content,
+              usage: result.usage,
+            };
+            discussionSoFar.push(entry);
+            onEntryComplete(entry);
+          }
+        } catch (err) {
+          // Add error entry and continue to next model
           const entry: DiscussionEntry = {
             role: 'model',
             provider: model.provider,
             model: model.model,
             displayName: model.displayName,
-            systemPrompt,
-            content: result.content,
-            usage: result.usage,
+            content: `[Error: Failed to get response - ${err}]`,
           };
           discussionSoFar.push(entry);
           onEntryComplete(entry);
         }
-      } catch (err) {
-        // Add error entry and continue to next model
-        const entry: DiscussionEntry = {
-          role: 'model',
-          provider: model.provider,
-          model: model.model,
-          displayName: model.displayName,
-          content: `[Error: Failed to get response - ${err}]`,
-        };
-        discussionSoFar.push(entry);
-        onEntryComplete(entry);
       }
     }
 
@@ -558,6 +864,7 @@ ${JSON.stringify(
       systemPrompts: new Map(),
       clarifyingExchanges: [],
       waitingForClarification: false,
+      parallelStreams: new Map(),
       followUpInProgress: false,
       error: null,
     });
