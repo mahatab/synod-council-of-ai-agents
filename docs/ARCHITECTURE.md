@@ -106,6 +106,21 @@ IDLE ──► STREAMING ──► IDLE
 7. `StreamEvent::Usage` events are accumulated using a MAX strategy (handles Anthropic's split events, Google's cumulative totals, and single-event providers uniformly)
 8. When streaming completes, the invoke returns a `StreamChatResult` with the full response and final usage data
 
+## Workspace Structure
+
+The project uses a Cargo workspace with three crates:
+
+```
+Cargo.toml (workspace root)
+├── src-tauri/            — Tauri desktop app (v0.3.1)
+├── crates/council-core/  — Shared library: AI providers, keychain, sessions, settings
+└── crates/telegram-bot/  — Telegram bot integration (v0.1.0)
+```
+
+- **council-core** is the shared library used by both the desktop app and the Telegram bot. It contains all AI provider integrations, keychain access, session storage, and settings management.
+- **telegram-bot** provides both a library function (`start_bot()`) for embedding in the Tauri app and a standalone binary for server deployment.
+- **src-tauri** is the Tauri desktop app that manages the UI, IPC bridge, and optionally spawns the Telegram bot as a background task.
+
 ## IPC Commands
 
 | Module     | Commands                                                        |
@@ -114,6 +129,7 @@ IDLE ──► STREAMING ──► IDLE
 | `api_calls`| `stream_chat`                                                   |
 | `sessions` | `save_session`, `load_session`, `list_sessions`, `delete_session`, `get_default_sessions_path` |
 | `settings` | `load_settings`, `save_settings`                                |
+| `telegram` | `start_telegram_bot`, `stop_telegram_bot`, `get_telegram_status`|
 
 ## Data Storage
 
@@ -145,7 +161,7 @@ IDLE ──► STREAMING ──► IDLE
 - **ModelResponse** / **MasterVerdict** — Display model outputs with provider colors, copy buttons
 - **ClarifyingQuestion** — Emerald-themed UI for answering the first model's clarifying questions, with markdown rendering and highlighted list items
 - **ParallelStatusOverlay** — Transparent floating status bar showing real-time completion status for each parallel model (thinking/streaming/done/error) with animated provider-colored indicators
-- **SettingsModal** — Tabbed settings: Models (drag-drop reorder), API Keys, Appearance, Advanced, Sessions
+- **SettingsModal** — Tabbed settings: Models (drag-drop reorder), API Keys, Appearance, Sessions, Advanced, Telegram
 - **Sidebar** — Session history grouped by date (Today, Yesterday, Previous 7 Days, etc.), filtered by active mode
 - **ModeToggle** — Switches between Council and Direct Chat modes
 
@@ -162,8 +178,40 @@ interface AppSettings {
   cursorStyle: 'ripple' | 'breathing' | 'orbit' | 'multi';
   sessionSavePath: string | null;       // Custom session storage path
   setupCompleted: boolean;
+  telegramEnabled: boolean;             // Auto-start Telegram bot on app launch
 }
 
 // App-level mode (stored in settingsStore, not persisted)
 type AppMode = 'council' | 'direct_chat';
 ```
+
+## Telegram Bot Architecture
+
+The Telegram bot is embedded in the Tauri desktop app and shares the same `council-core` library.
+
+```
+User (Telegram) ──► Teloxide Dispatcher ──► handlers.rs
+                                               │
+                         ┌─────────────────────┼─────────────────────┐
+                         │                     │                     │
+                    council.rs          direct_chat.rs          formatting.rs
+                         │                     │                     │
+                         └─────────────────────┼─────────────────────┘
+                                               │
+                                         council-core
+                                    (providers, keychain, etc.)
+```
+
+**Lifecycle:**
+1. User enables Telegram in Settings and provides a bot token (from @BotFather)
+2. Token is stored in the OS keychain at `com.council-of-ai-agents.telegram-bot-token`
+3. Tauri app spawns the bot via `tauri::async_runtime::spawn(start_bot(token, shutdown_rx))`
+4. Bot listens for Telegram messages and routes them through `handlers.rs`
+5. On app close or user toggle, a shutdown signal is sent via the oneshot channel
+6. On next app launch, if `telegramEnabled` is true, the bot auto-starts
+
+**Key modules:**
+- `handlers.rs` — Routes 8 slash commands (`/council`, `/chat`, `/models`, etc.) and free-text messages
+- `council.rs` — Full council orchestration (system prompts, model turns, clarifying Q&A, master verdict)
+- `direct_chat.rs` — 1-on-1 chat with fuzzy model name resolution and conversation continuations
+- `formatting.rs` — Converts AI Markdown to Telegram HTML, typing indicators, message splitting

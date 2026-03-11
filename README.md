@@ -155,24 +155,33 @@ cargo tauri build
 ## Architecture
 
 ```
-src/                          React + TypeScript frontend
-├── components/
-│   ├── chat/                 ChatView, DirectChatView, AgentPicker,
-│   │                         ModelResponse, MasterVerdict, MentionDropdown,
-│   │                         FollowUpQuestion, ClarifyingQuestion,
-│   │                         ParallelStatusOverlay, StreamingText,
-│   │                         ModeToggle, DiscussionSettingsBar
-│   ├── settings/             ModelManager, ApiKeyManager, Appearance, Advanced
-│   ├── setup/                First-run wizard
-│   └── common/               Button, Toggle, Modal
-├── stores/                   Zustand stores (council, directChat, settings, session)
-├── lib/                      Tauri IPC bindings, theme, markdown, sessionTitle
-└── types/                    TypeScript definitions
-
-src-tauri/                    Rust backend
-├── commands/                 stream_chat, keychain, sessions, settings
-├── providers/                8 provider integrations with shared SSE parser
-└── models/                   Config, session, discussion entry types
+Cargo.toml                    Workspace root
+├── src-tauri/                Tauri desktop app (Rust backend)
+│   ├── commands/             stream_chat, keychain, sessions, settings, telegram
+│   └── lib.rs                App setup, bot auto-start
+├── crates/council-core/      Shared library
+│   ├── providers/            8 AI provider integrations with SSE streaming
+│   ├── models/               Config, session, discussion entry types
+│   ├── keychain/             macOS Keychain / Windows Credential Manager
+│   ├── sessions.rs           Session storage
+│   └── settings.rs           Settings persistence
+├── crates/telegram-bot/      Telegram bot (embedded + standalone)
+│   ├── council.rs            Council orchestration for Telegram
+│   ├── direct_chat.rs        1-on-1 chat with any model
+│   ├── handlers.rs           8 slash commands + message routing
+│   └── formatting.rs         Markdown-to-Telegram-HTML converter
+└── src/                      React + TypeScript frontend
+    ├── components/
+    │   ├── chat/             ChatView, DirectChatView, AgentPicker,
+    │   │                     ModelResponse, MasterVerdict, MentionDropdown,
+    │   │                     FollowUpQuestion, ClarifyingQuestion,
+    │   │                     ParallelStatusOverlay, StreamingText
+    │   ├── settings/         Models, API Keys, Appearance, Sessions, Telegram
+    │   ├── setup/            First-run wizard
+    │   └── common/           Button, Toggle, Modal
+    ├── stores/               Zustand stores (council, directChat, settings, session)
+    ├── lib/                  Tauri IPC bindings, theme, markdown, sessionTitle
+    └── types/                TypeScript definitions
 ```
 
 ### Tech Stack
@@ -197,6 +206,7 @@ Detailed docs live in the [`docs/`](docs/) directory:
 - [API Providers](docs/API_PROVIDERS.md) — endpoints, auth methods, streaming formats
 - [Adding Providers](docs/ADDING_PROVIDERS.md) — step-by-step guide to add new AI providers
 - [Setup Guide](docs/SETUP_GUIDE.md) — installation and configuration walkthrough
+- [Telegram Bot](docs/TELEGRAM_BOT.md) — setup, commands, standalone deployment
 
 ## Contributing
 

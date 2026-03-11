@@ -131,6 +131,36 @@ You need at least one API key to use the app. The more providers you configure, 
 4. Click "Create Trial Key" or "Create Production Key"
 5. Copy the generated API key
 
+## Setting Up Telegram Bot (Optional)
+
+You can interact with Synode from any device via Telegram. The bot runs inside the desktop app and shares the same API keys, models, and settings.
+
+### 1. Create a Bot
+
+1. Open Telegram and search for **@BotFather**
+2. Send `/newbot`
+3. Follow the prompts to choose a name and username for your bot
+4. Copy the bot token (looks like `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`)
+
+### 2. Configure in Synode
+
+1. Open the Synode desktop app
+2. Go to **Settings > Telegram**
+3. Paste your bot token into the token field
+4. Click **Save Token**
+5. Click **Start Bot**
+
+Once started, the status indicator will turn green. The bot will auto-start with the app on future launches when enabled.
+
+### 3. Start Chatting
+
+1. Open Telegram and find your bot by the username you chose
+2. Send `/start` to see available commands
+3. Try `/council What is the best programming language for beginners?`
+4. Or chat directly with a model: `/chat gemini Tell me a fun fact`
+
+See the full [Telegram Bot documentation](TELEGRAM_BOT.md) for all commands and advanced deployment options.
+
 ## Building for Production
 
 ```bash
