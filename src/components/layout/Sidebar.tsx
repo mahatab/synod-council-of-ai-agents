@@ -100,11 +100,15 @@ export default function Sidebar() {
 
   return (
     <div className="w-64 h-full flex flex-col bg-[var(--color-bg-sidebar)] border-r border-[var(--color-border-primary)]">
-      {/* Spacer for macOS traffic light buttons */}
+      {/* Title bar area with macOS traffic light buttons */}
       <div
         onMouseDown={() => getCurrentWindow().startDragging()}
-        className="titlebar-drag-region h-12 flex-shrink-0"
-      />
+        className="titlebar-drag-region h-12 flex-shrink-0 flex items-center pl-20"
+      >
+        <span className="text-sm font-semibold text-[var(--color-text-primary)] select-none">
+          Synode
+        </span>
+      </div>
 
       {/* Mode toggle */}
       <div className="px-3 pb-2">
