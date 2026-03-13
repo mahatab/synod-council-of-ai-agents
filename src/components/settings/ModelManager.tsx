@@ -23,6 +23,7 @@ import { useSessionStore } from '../../stores/sessionStore';
 import { PROVIDERS, getProviderColor } from '../../types';
 import type { ModelConfig, Provider, MasterModelConfig, Session } from '../../types';
 import * as tauri from '../../lib/tauri';
+import { calculateModelCost, formatUsdCost } from '../../lib/pricing';
 
 interface SortableModelProps {
   model: ModelConfig;
@@ -97,6 +98,9 @@ interface ModelUsageStats {
   inputTokens: number;
   outputTokens: number;
   isMaster: boolean;
+  inputUsd: number | null;
+  outputUsd: number | null;
+  totalUsd: number | null;
 }
 
 function formatTokenCount(count: number): string {
@@ -207,16 +211,22 @@ function TokenUsageSection() {
         }
       }
 
-      // Convert to array and sort by total tokens descending
+      // Convert to array, compute costs, and sort by total tokens descending
       const stats: ModelUsageStats[] = Array.from(usageMap.values())
-        .map((v) => ({
-          provider: v.provider,
-          model: v.model,
-          displayName: v.displayName,
-          inputTokens: v.input,
-          outputTokens: v.output,
-          isMaster: v.isMaster,
-        }))
+        .map((v) => {
+          const cost = calculateModelCost(v.model, v.input, v.output);
+          return {
+            provider: v.provider,
+            model: v.model,
+            displayName: v.displayName,
+            inputTokens: v.input,
+            outputTokens: v.output,
+            isMaster: v.isMaster,
+            inputUsd: cost?.inputUsd ?? null,
+            outputUsd: cost?.outputUsd ?? null,
+            totalUsd: cost?.totalUsd ?? null,
+          };
+        })
         .sort((a, b) => (b.inputTokens + b.outputTokens) - (a.inputTokens + a.outputTokens));
 
       setUsageStats(stats);
@@ -239,6 +249,8 @@ function TokenUsageSection() {
   const daysUntilReset = getDaysUntilReset();
   const totalInput = usageStats.reduce((sum, s) => sum + s.inputTokens, 0);
   const totalOutput = usageStats.reduce((sum, s) => sum + s.outputTokens, 0);
+  const totalCost = usageStats.reduce((sum, s) => sum + (s.totalUsd ?? 0), 0);
+  const hasAnyCost = usageStats.some((s) => s.totalUsd !== null);
 
   return (
     <div>
@@ -314,6 +326,13 @@ function TokenUsageSection() {
                     Total: <span className="text-[var(--color-text-primary)] font-semibold">{formatTokenCount(total)}</span>
                   </span>
                 </div>
+                {stat.totalUsd !== null && (
+                  <div className="flex items-center justify-end mt-1 text-xs text-[var(--color-text-tertiary)]">
+                    <span>
+                      Est. cost: <span className="text-[var(--color-text-primary)] font-semibold">{formatUsdCost(stat.totalUsd)}</span>
+                    </span>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -335,6 +354,13 @@ function TokenUsageSection() {
                   </span>
                 </div>
               </div>
+              {hasAnyCost && (
+                <div className="flex items-center justify-end mt-1 text-xs text-[var(--color-text-tertiary)]">
+                  <span>
+                    Est. total cost: <span className="text-[var(--color-text-primary)] font-semibold">{formatUsdCost(totalCost)}</span>
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </div>
