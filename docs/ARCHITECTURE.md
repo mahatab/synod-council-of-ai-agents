@@ -97,14 +97,15 @@ IDLE ──► STREAMING ──► IDLE
 
 ## Streaming Architecture
 
-1. Frontend calls `invoke("stream_chat", { provider, model, messages, systemPrompt, apiKey, streamId })`
+1. Frontend calls `invoke("stream_chat", { provider, model, messages, systemPrompt, apiKey, streamId, webSearchEnabled })`
 2. Rust backend routes to the appropriate provider and creates an HTTP request with SSE streaming
-3. The shared `parse_sse_stream()` utility handles SSE line buffering across TCP chunk boundaries
-4. Each provider supplies a closure to extract tokens/usage from its JSON format
-5. As `StreamEvent::Token` events arrive, Rust emits Tauri events on the `stream-token-{streamId}` channel
-6. Frontend listens for these events and appends tokens in real-time
-7. `StreamEvent::Usage` events are accumulated using a MAX strategy (handles Anthropic's split events, Google's cumulative totals, and single-event providers uniformly)
-8. When streaming completes, the invoke returns a `StreamChatResult` with the full response and final usage data
+3. When `webSearchEnabled` is true, providers inject web search tools into the API request (Anthropic: `web_search_20250305` tool, Google: `google_search` grounding, OpenAI/xAI: switch to Responses API with `web_search_preview`/`web_search` tool). A system prompt nudge is also appended instructing the model to actively use its search tools.
+4. The shared `parse_sse_stream()` utility handles SSE line buffering across TCP chunk boundaries
+5. Each provider supplies a closure to extract tokens/usage from its JSON format
+6. As `StreamEvent::Token` events arrive, Rust emits Tauri events on the `stream-token-{streamId}` channel
+7. Frontend listens for these events and appends tokens in real-time
+8. `StreamEvent::Usage` events are accumulated using a MAX strategy (handles Anthropic's split events, Google's cumulative totals, and single-event providers uniformly)
+9. When streaming completes, the invoke returns a `StreamChatResult` with the full response and final usage data
 
 ## Workspace Structure
 
@@ -155,12 +156,13 @@ Cargo.toml (workspace root)
 ### Key Components
 
 - **SetupWizard** — First-run flow: welcome → model selection → API keys → master model → complete
-- **ChatView** — Council discussion interface with sequential and parallel streaming, `@mention` dropdown for follow-ups
-- **DirectChatView** — 1-on-1 chat interface with multi-turn conversation history
+- **ChatView** — Council discussion interface with sequential and parallel streaming, `@mention` dropdown for follow-ups. Automatically filters out models that don't support web search when internet access is enabled
+- **DirectChatView** — 1-on-1 chat interface with multi-turn conversation history, globe toggle for internet access
 - **AgentPicker** — Searchable model selection grid with provider color coding and API key availability
 - **ModelResponse** / **MasterVerdict** — Display model outputs with provider colors, copy buttons
 - **ClarifyingQuestion** — Emerald-themed UI for answering the first model's clarifying questions, with markdown rendering and highlighted list items
 - **ParallelStatusOverlay** — Transparent floating status bar showing real-time completion status for each parallel model (thinking/streaming/done/error) with animated provider-colored indicators
+- **StreamingText** — Renders all markdown content via ReactMarkdown with custom link handling (opens URLs in system browser via `tauri-plugin-opener`)
 - **SettingsModal** — Tabbed settings: Models (drag-drop reorder), API Keys, Appearance, Sessions, Usage, Advanced, Telegram
 - **UsageSettings** — Dedicated Usage tab with summary stat cards (total tokens, estimated cost, models used) and per-model token/cost breakdown powered by static pricing data from `lib/pricing.ts`
 - **Sidebar** — Session history grouped by date (Today, Yesterday, Previous 7 Days, etc.), filtered by active mode
@@ -175,6 +177,7 @@ interface AppSettings {
   systemPromptMode: 'upfront' | 'dynamic';
   discussionStyle: 'sequential' | 'independent'; // Independent enables parallel execution
   discussionDepth: 'thorough' | 'concise';
+  internetAccessEnabled: boolean;       // Enable web search for supported providers
   theme: 'light' | 'dark' | 'system';
   cursorStyle: 'ripple' | 'breathing' | 'orbit' | 'multi';
   sessionSavePath: string | null;       // Custom session storage path

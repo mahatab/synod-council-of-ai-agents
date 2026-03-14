@@ -4,7 +4,7 @@ This guide walks through adding a new AI provider to the council.
 
 ## Step 1: Add the Rust Provider
 
-Create `src-tauri/src/providers/your_provider.rs`:
+Create `crates/council-core/src/providers/your_provider.rs`:
 
 ```rust
 use anyhow::{anyhow, Result};
@@ -29,7 +29,11 @@ impl YourProvider {
         model: &str,
         messages: &[ChatMessage],
         system_prompt: Option<&str>,
+        web_search_enabled: bool,  // pass true when internet access is on
     ) -> Result<TokenStream> {
+        // If your provider supports web search, add tools to the request body
+        // when web_search_enabled is true. Otherwise, ignore the parameter:
+        let _ = web_search_enabled;
         let mut api_messages: Vec<Value> = Vec::new();
 
         // Add system prompt (most providers use a system role message)
@@ -99,16 +103,16 @@ impl YourProvider {
 }
 ```
 
-The `parse_sse_stream()` utility in `src-tauri/src/providers/mod.rs` handles all SSE line buffering, `[DONE]` sentinels, and JSON parsing. You only need to provide the closure that maps your provider's JSON to `StreamEvent` variants.
+The `parse_sse_stream()` utility in `crates/council-core/src/providers/mod.rs` handles all SSE line buffering, `[DONE]` sentinels, and JSON parsing. You only need to provide the closure that maps your provider's JSON to `StreamEvent` variants.
 
 ## Step 2: Register the Provider
 
-1. Add to `src-tauri/src/providers/mod.rs`:
+1. Add to `crates/council-core/src/providers/mod.rs`:
    ```rust
    pub mod your_provider;
    ```
 
-2. Add to the `Provider` enum in `src-tauri/src/models/config.rs`:
+2. Add to the `Provider` enum in `crates/council-core/src/models/config.rs`:
    ```rust
    pub enum Provider {
        Anthropic,
@@ -129,13 +133,27 @@ The `parse_sse_stream()` utility in `src-tauri/src/providers/mod.rs` handles all
    ```rust
    Provider::YourProvider => {
        let p = YourProvider::new();
-       p.stream_chat(&api_key, &model, &messages, system_ref).await
+       p.stream_chat(&api_key, &model, &messages, system_ref, web_search_enabled).await
    }
    ```
 
    Add the import at the top:
    ```rust
-   use crate::providers::your_provider::YourProvider;
+   use council_core::providers::your_provider::YourProvider;
+   ```
+
+4. Add the match arm in `crates/council-core/src/chat.rs` → `model_supports_web_search()`:
+   ```rust
+   Provider::YourProvider => false,  // or true if your provider supports web search
+   ```
+
+   And in `create_stream()`:
+   ```rust
+   Provider::YourProvider => {
+       YourProvider::new()
+           .stream_chat(api_key, model, messages, final_system_prompt, web_search_enabled)
+           .await
+   }
    ```
 
 ## Step 3: Update CSP
@@ -162,7 +180,8 @@ export type Provider = 'anthropic' | ... | 'your_provider';
   name: 'Your Provider',
   keychainService: 'com.council-of-ai-agents.your-provider',
   models: [
-    { id: 'model-id', name: 'Model Name' },
+    { id: 'model-id', name: 'Model Name' },           // no web search
+    { id: 'model-ws', name: 'Model WS', webSearch: true },  // with web search
   ],
   apiKeyUrl: 'https://your-provider.com/api-keys',
   apiKeySteps: [
@@ -182,7 +201,7 @@ case 'your_provider':
 
 ## Step 5: Add Keychain Migration Entry (macOS)
 
-In `src-tauri/src/commands/keychain.rs`, add your provider to the `LEGACY_SERVICES` array (used for migrating old per-provider macOS Keychain entries):
+In `crates/council-core/src/keychain/keychain_macos.rs`, add your provider to the `LEGACY_SERVICES` array (used for migrating old per-provider macOS Keychain entries):
 
 ```rust
 const LEGACY_SERVICES: &[(&str, &str)] = &[
@@ -195,8 +214,9 @@ No changes needed for Windows — the `keyring` crate in `keychain_windows.rs` u
 
 ## Step 6: Test
 
-1. Run `cargo check` in `src-tauri/` to verify Rust code compiles
+1. Run `cargo check` to verify Rust code compiles (workspace-level)
 2. Run `npx tsc --noEmit` to verify TypeScript
 3. Run `cargo tauri dev` and add your provider in settings
 4. Verify streaming works, usage data is reported, and API keys are saved/loaded correctly
-5. CI will verify compilation on both macOS and Windows
+5. If your provider supports web search, enable Internet Access and verify search results appear
+6. CI will verify compilation on both macOS and Windows

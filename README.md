@@ -79,12 +79,20 @@ You ask a question, and your council of AI models responds. In **Sequential** mo
 - **Auto-start** — bot launches with the app when enabled in Settings
 - See [Telegram Bot docs](docs/TELEGRAM_BOT.md) for setup instructions
 
+### Internet Access (Web Search)
+- **Live web search** — models can search the web for up-to-date information when answering
+- **4 supported providers** — Anthropic (`web_search` tool), Google (`google_search` grounding), OpenAI (Responses API), xAI (Responses API, Grok-4 only)
+- **Automatic model filtering** — unsupported providers (DeepSeek, Mistral, Together AI, Cohere) are excluded from council when internet is enabled, with amber warnings showing which models are skipped
+- **Globe toggle** — enable/disable from the chat input area or Advanced Settings
+- **Smart prompting** — system prompt nudge instructs models to actively use their search tools
+
 ### Polished UX
 - **Real-time streaming** with 4 animated cursor styles (ripple, breathing, orbit, multi-caret)
 - **Dark mode** support
 - **Drag-and-drop** model reordering
 - **Secure API key storage** — macOS Keychain or Windows Credential Manager
 - **Setup wizard** with built-in API key instructions for each provider
+- **External links** — URLs in model responses open in the system default browser
 
 ## Screenshots
 
@@ -114,16 +122,18 @@ You ask a question, and your council of AI models responds. In **Sequential** mo
 
 ## Supported Providers
 
-| Provider | Models |
-|----------|--------|
-| **Anthropic** | Claude Opus 4.6, Sonnet 4.6, Sonnet 4.5, Haiku 4.5 |
-| **OpenAI** | GPT-5.2, GPT-4.1, GPT-4.1 Mini, GPT-4.1 Nano, GPT-4o, GPT-4o Mini, o3, o3-mini, o4-mini |
-| **Google** | Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 2.5 Flash Lite |
-| **xAI** | Grok-4, Grok-3, Grok-3 Mini |
-| **DeepSeek** | DeepSeek V3 (Chat), DeepSeek R1 (Reasoner) |
-| **Mistral** | Mistral Large, Mistral Medium, Mistral Small, Codestral |
-| **Together AI** | Llama 4 Maverick, Llama 4 Scout |
-| **Cohere** | Command A, Command R+ |
+| Provider | Models | Web Search |
+|----------|--------|:----------:|
+| **Anthropic** | Claude Opus 4.6, Sonnet 4.6, Sonnet 4.5, Haiku 4.5 | ✅ |
+| **OpenAI** | GPT-5.2, GPT-4.1, GPT-4.1 Mini, GPT-4.1 Nano, GPT-4o, GPT-4o Mini, o3, o3-mini, o4-mini | ✅* |
+| **Google** | Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 2.5 Flash Lite | ✅ |
+| **xAI** | Grok-4, Grok-3, Grok-3 Mini | ✅** |
+| **DeepSeek** | DeepSeek V3 (Chat), DeepSeek R1 (Reasoner) | — |
+| **Mistral** | Mistral Large, Mistral Medium, Mistral Small, Codestral | — |
+| **Together AI** | Llama 4 Maverick, Llama 4 Scout | — |
+| **Cohere** | Command A, Command R+ | — |
+
+\* OpenAI: all models except GPT-4.1 Nano and o3-mini &nbsp;&nbsp; \** xAI: Grok-4 family only
 
 > Bring your own API keys. Each key is stored locally in the OS credential store (macOS Keychain or Windows Credential Manager) — never sent anywhere except the provider's own API.
 
@@ -199,6 +209,7 @@ Cargo.toml                    Workspace root
 | Animations | Framer Motion |
 | Drag-and-drop | dnd-kit |
 | Markdown | react-markdown + react-syntax-highlighter |
+| External links | tauri-plugin-opener (system default browser) |
 | API key storage | macOS Keychain / Windows Credential Manager |
 | HTTP streaming | reqwest + tokio-stream with SSE line buffering |
 
