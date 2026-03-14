@@ -26,6 +26,7 @@ const defaultSettings: AppSettings = {
   sessionSavePath: null,
   setupCompleted: false,
   telegramEnabled: false,
+  internetAccessEnabled: false,
 };
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({

@@ -19,16 +19,17 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import Button from '../common/Button';
 import { useSettingsStore } from '../../stores/settingsStore';
-import { PROVIDERS, getProviderColor } from '../../types';
+import { PROVIDERS, getProviderColor, modelSupportsWebSearch } from '../../types';
 import type { ModelConfig, Provider, MasterModelConfig } from '../../types';
 
 interface SortableModelProps {
   model: ModelConfig;
   isFirst: boolean;
   onRemove: () => void;
+  internetAccessEnabled: boolean;
 }
 
-function SortableModel({ model, isFirst, onRemove }: SortableModelProps) {
+function SortableModel({ model, isFirst, onRemove, internetAccessEnabled }: SortableModelProps) {
   const { attributes, listeners, setNodeRef, transform, transition } =
     useSortable({ id: `${model.provider}:${model.model}` });
 
@@ -72,6 +73,11 @@ function SortableModel({ model, isFirst, onRemove }: SortableModelProps) {
           {isFirst && (
             <span className="text-xs text-[var(--color-accent)] font-medium">
               (Can ask questions)
+            </span>
+          )}
+          {internetAccessEnabled && !modelSupportsWebSearch(model.provider, model.model) && (
+            <span className="text-xs text-amber-500 font-medium">
+              (No web search)
             </span>
           )}
         </div>
@@ -184,6 +190,7 @@ export default function ModelManager() {
                   model={model}
                   isFirst={i === 0}
                   onRemove={() => handleRemoveModel(i)}
+                  internetAccessEnabled={settings.internetAccessEnabled}
                 />
               ))}
             </div>

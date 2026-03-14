@@ -23,6 +23,7 @@ impl AnthropicProvider {
         model: &str,
         messages: &[ChatMessage],
         system_prompt: Option<&str>,
+        web_search_enabled: bool,
     ) -> Result<TokenStream> {
         let api_messages: Vec<Value> = messages
             .iter()
@@ -43,6 +44,14 @@ impl AnthropicProvider {
 
         if let Some(system) = system_prompt {
             body["system"] = json!(system);
+        }
+
+        if web_search_enabled {
+            body["tools"] = json!([{
+                "type": "web_search_20250305",
+                "name": "web_search",
+                "max_uses": 5
+            }]);
         }
 
         let response = self

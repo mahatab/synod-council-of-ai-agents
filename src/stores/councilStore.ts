@@ -36,6 +36,7 @@ interface CouncilStoreState {
     discussionStyle: DiscussionStyle,
     getApiKey: (service: string) => Promise<string | null>,
     onEntryComplete: (entry: DiscussionEntry) => void,
+    webSearchEnabled?: boolean,
   ) => Promise<void>;
 
   sendFollowUp: (
@@ -46,6 +47,7 @@ interface CouncilStoreState {
     discussionEntries: DiscussionEntry[],
     getApiKey: (service: string) => Promise<string | null>,
     onEntryComplete: (entry: DiscussionEntry) => void,
+    webSearchEnabled?: boolean,
   ) => Promise<void>;
 
   submitClarification: (answer: string) => void;
@@ -73,6 +75,7 @@ export const useCouncilStore = create<CouncilStoreState>((set, get) => ({
     discussionStyle,
     getApiKey,
     onEntryComplete,
+    webSearchEnabled = false,
   ) => {
     set({ state: 'user_input', error: null });
 
@@ -148,6 +151,7 @@ ${JSON.stringify(
           'You are an AI orchestrator. Generate system prompts for council models. Return valid JSON only.',
           masterApiKey,
           streamId,
+          false,
         );
 
         unlisten();
@@ -222,7 +226,7 @@ ${JSON.stringify(
           });
 
           const result = await tauri.streamChat(
-            model.provider, model.model, messages, systemPrompt, apiKey, streamId,
+            model.provider, model.model, messages, systemPrompt, apiKey, streamId, webSearchEnabled,
           );
 
           unlisten();
@@ -275,7 +279,7 @@ ${JSON.stringify(
               );
 
               const followUpResult = await tauri.streamChat(
-                model.provider, model.model, followUpMessages, systemPrompt, apiKey, followUpStreamId,
+                model.provider, model.model, followUpMessages, systemPrompt, apiKey, followUpStreamId, webSearchEnabled,
               );
 
               followUpUnlisten();
@@ -364,6 +368,7 @@ ${JSON.stringify(
                       'Generate a concise system prompt. Return only the prompt text.',
                       masterApiKey,
                       dynamicStreamId,
+                      false,
                     );
                     dynamicUnlisten();
                     systemPrompt = dynamicResult.content;
@@ -424,7 +429,7 @@ ${JSON.stringify(
               });
 
               const result = await tauri.streamChat(
-                prep.model.provider, prep.model.model, messages, prep.systemPrompt, prep.apiKey, streamId,
+                prep.model.provider, prep.model.model, messages, prep.systemPrompt, prep.apiKey, streamId, webSearchEnabled,
               );
               unlisten();
 
@@ -537,6 +542,7 @@ ${JSON.stringify(
                   'Generate a concise system prompt. Return only the prompt text.',
                   masterApiKey,
                   dynamicStreamId,
+                  false,
                 );
                 dynamicUnlisten();
                 systemPrompt = dynamicResult.content;
@@ -575,6 +581,7 @@ ${JSON.stringify(
               systemPrompt,
               apiKey,
               streamId,
+              webSearchEnabled,
             );
           } finally {
             unlisten();
@@ -637,6 +644,7 @@ ${JSON.stringify(
                 systemPrompt,
                 apiKey,
                 followUpStreamId,
+                webSearchEnabled,
               );
 
               followUpUnlisten();
@@ -736,6 +744,7 @@ ${JSON.stringify(
         masterSystemPrompt,
         masterApiKey,
         streamId,
+        false,
       );
 
       unlisten();
@@ -767,6 +776,7 @@ ${JSON.stringify(
     discussionEntries,
     getApiKey,
     onEntryComplete,
+    webSearchEnabled = false,
   ) => {
     set({
       state: 'follow_up',
@@ -820,6 +830,7 @@ ${JSON.stringify(
         systemPrompt,
         apiKey,
         streamId,
+        webSearchEnabled,
       );
 
       unlisten();
@@ -925,20 +936,91 @@ function getDefaultSystemPrompt(model: ModelConfig, isFirst: boolean, depth: Dis
 }
 
 function looksLikeClarifyingQuestion(response: string): boolean {
+  if (!response.includes('?')) return false;
+
+  const lowerResponse = response.toLowerCase();
+
+  // 1. Explicit phrasing that signals a clarifying question
   const questionIndicators = [
-    'before I provide my recommendation',
+    'before i provide',
+    'before i can',
+    'before i give',
+    'before i offer',
+    'before i proceed',
+    'before i analyze',
+    'before i respond',
     'could you clarify',
-    'I have a few questions',
+    'can you clarify',
+    'please clarify',
+    'could you specify',
+    'can you specify',
+    'please specify',
+    'could you elaborate',
+    'please elaborate',
+    'could you provide more',
+    'can you provide more',
+    'please provide more',
+    'could you share',
+    'could you tell me',
+    'can you tell me',
+    'could you please',
+    'can you please',
+    'would you mind',
+    'i have a few questions',
+    'i have some questions',
+    'i\'d like to ask',
+    'i\'d like to clarify',
+    'i need a bit more',
+    'i need some more',
+    'i need to understand',
     'let me ask',
     'to help narrow down',
-    'could you tell me',
+    'to better assist',
+    'to give you the best',
+    'to provide a more accurate',
+    'to provide a better',
+    'to provide the most',
+    'to help me provide',
+    'to help me give',
+    'to recommend',
     'what is your preference',
     'do you have a preference',
+    'what criteria',
+    'what specific',
+    'which specific',
+    'what kind of',
+    'what type of',
+    'are you looking for',
+    'what are you looking for',
+    'what do you mean by',
+    'what exactly',
+    'are you primarily',
+    'are you interested in',
+    'do you prioritize',
+    'a few clarifying questions',
+    'a couple of questions',
+    'some clarifying questions',
+    'need more context',
+    'need more information',
+    'need additional details',
+    'help me understand',
+    'more details about',
+    'more information about',
   ];
-  const lowerResponse = response.toLowerCase();
-  return questionIndicators.some((indicator) =>
-    lowerResponse.includes(indicator),
-  ) && response.includes('?');
+
+  if (questionIndicators.some((indicator) => lowerResponse.includes(indicator))) {
+    return true;
+  }
+
+  // 2. Structural heuristic: short response that is mostly questions
+  //    (e.g., a 2-3 sentence response where most sentences end with ?)
+  const sentences = response.split(/[.!?]+/).filter(s => s.trim().length > 5);
+  const questionMarks = (response.match(/\?/g) || []).length;
+  if (sentences.length <= 6 && questionMarks >= 2 && questionMarks >= sentences.length * 0.4) {
+    return true;
+  }
+
+  return false;
 }
 
 function combineUsage(a?: UsageData, b?: UsageData): UsageData | undefined {

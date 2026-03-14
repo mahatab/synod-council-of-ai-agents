@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Info } from 'lucide-react';
+import { Info, Globe } from 'lucide-react';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { modelSupportsWebSearch } from '../../types';
 
 interface SettingInfo {
   key: string;
@@ -115,6 +116,54 @@ export default function DiscussionSettingsBar() {
             </div>
           </div>
         ))}
+        {settings.internetAccessEnabled && (() => {
+          const skippedModels = settings.councilModels.filter(
+            m => !modelSupportsWebSearch(m.provider, m.model)
+          );
+          return (
+            <div className="flex items-center gap-1">
+              <span className="text-[var(--color-text-tertiary)] text-xs mr-2">&middot;</span>
+              <Globe size={12} className="text-[var(--color-accent)]" />
+              <span className="text-xs text-[var(--color-accent)] font-medium">
+                Internet
+              </span>
+              {skippedModels.length > 0 && (
+                <div className="relative">
+                  <button
+                    onClick={() => setOpenTooltip(openTooltip === 'internet' ? null : 'internet')}
+                    className="p-0.5 rounded text-amber-500 hover:text-amber-400 transition-colors"
+                  >
+                    <Info size={12} />
+                  </button>
+                  <AnimatePresence>
+                    {openTooltip === 'internet' && (
+                      <motion.div
+                        className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-10 w-72 bg-[var(--color-bg-card)] border border-[var(--color-border-primary)] rounded-[var(--radius-md)] shadow-lg p-3"
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 4 }}
+                      >
+                        <p className="text-xs text-amber-500 font-medium mb-1">
+                          {skippedModels.length} model{skippedModels.length > 1 ? 's' : ''} excluded
+                        </p>
+                        <p className="text-xs text-[var(--color-text-secondary)] mb-2">
+                          These models don't support web search and won't participate in the council:
+                        </p>
+                        <ul className="space-y-0.5">
+                          {skippedModels.map(m => (
+                            <li key={`${m.provider}:${m.model}`} className="text-[11px] text-[var(--color-text-tertiary)]">
+                              • {m.displayName}
+                            </li>
+                          ))}
+                        </ul>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

@@ -23,6 +23,7 @@ impl MistralProvider {
         model: &str,
         messages: &[ChatMessage],
         system_prompt: Option<&str>,
+        _web_search_enabled: bool,
     ) -> Result<TokenStream> {
         let mut api_messages: Vec<Value> = Vec::new();
 

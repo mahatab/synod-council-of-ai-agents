@@ -33,6 +33,7 @@ export interface AppSettings {
   sessionSavePath: string | null;
   setupCompleted: boolean;
   telegramEnabled: boolean;
+  internetAccessEnabled: boolean;
 }
 
 export interface ChatMessage {
@@ -168,13 +169,29 @@ export type CouncilState =
   | 'follow_up'
   | 'error';
 
+export interface ModelInfo {
+  id: string;
+  name: string;
+  webSearch?: boolean;
+}
+
 export interface ProviderInfo {
   id: Provider;
   name: string;
   keychainService: string;
-  models: { id: string; name: string }[];
+  models: ModelInfo[];
   apiKeyUrl: string;
   apiKeySteps: string[];
+}
+
+export const WEB_SEARCH_PROVIDERS: Provider[] = ['anthropic', 'openai', 'google', 'xai'];
+
+/** Check if a specific model supports web search */
+export function modelSupportsWebSearch(provider: string, modelId: string): boolean {
+  const providerInfo = PROVIDERS.find((p) => p.id === provider);
+  if (!providerInfo) return false;
+  const model = providerInfo.models.find((m) => m.id === modelId);
+  return model?.webSearch === true;
 }
 
 export const PROVIDERS: ProviderInfo[] = [
@@ -183,10 +200,10 @@ export const PROVIDERS: ProviderInfo[] = [
     name: 'Anthropic',
     keychainService: 'com.council-of-ai-agents.anthropic',
     models: [
-      { id: 'claude-opus-4-6', name: 'Claude Opus 4.6' },
-      { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6' },
-      { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5' },
-      { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5' },
+      { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', webSearch: true },
+      { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', webSearch: true },
+      { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', webSearch: true },
+      { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', webSearch: true },
     ],
     apiKeyUrl: 'https://console.anthropic.com/settings/keys',
     apiKeySteps: [
@@ -202,15 +219,15 @@ export const PROVIDERS: ProviderInfo[] = [
     name: 'OpenAI',
     keychainService: 'com.council-of-ai-agents.openai',
     models: [
-      { id: 'gpt-5.2', name: 'GPT-5.2' },
-      { id: 'gpt-4.1', name: 'GPT-4.1' },
-      { id: 'gpt-4.1-mini', name: 'GPT-4.1 Mini' },
+      { id: 'gpt-5.2', name: 'GPT-5.2', webSearch: true },
+      { id: 'gpt-4.1', name: 'GPT-4.1', webSearch: true },
+      { id: 'gpt-4.1-mini', name: 'GPT-4.1 Mini', webSearch: true },
       { id: 'gpt-4.1-nano', name: 'GPT-4.1 Nano' },
-      { id: 'gpt-4o', name: 'GPT-4o' },
-      { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
-      { id: 'o3', name: 'o3' },
+      { id: 'gpt-4o', name: 'GPT-4o', webSearch: true },
+      { id: 'gpt-4o-mini', name: 'GPT-4o Mini', webSearch: true },
+      { id: 'o3', name: 'o3', webSearch: true },
       { id: 'o3-mini', name: 'o3-mini' },
-      { id: 'o4-mini', name: 'o4-mini' },
+      { id: 'o4-mini', name: 'o4-mini', webSearch: true },
     ],
     apiKeyUrl: 'https://platform.openai.com/api-keys',
     apiKeySteps: [
@@ -226,9 +243,9 @@ export const PROVIDERS: ProviderInfo[] = [
     name: 'Google',
     keychainService: 'com.council-of-ai-agents.google',
     models: [
-      { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
-      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
-      { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite' },
+      { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', webSearch: true },
+      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', webSearch: true },
+      { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', webSearch: true },
     ],
     apiKeyUrl: 'https://aistudio.google.com/apikey',
     apiKeySteps: [
@@ -245,7 +262,7 @@ export const PROVIDERS: ProviderInfo[] = [
     name: 'xAI',
     keychainService: 'com.council-of-ai-agents.xai',
     models: [
-      { id: 'grok-4-0709', name: 'Grok-4' },
+      { id: 'grok-4-0709', name: 'Grok-4', webSearch: true },
       { id: 'grok-3', name: 'Grok-3' },
       { id: 'grok-3-mini', name: 'Grok-3 Mini' },
     ],

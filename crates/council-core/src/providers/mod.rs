@@ -40,6 +40,7 @@ pub trait AIProvider: Send + Sync {
         model: &str,
         messages: &[ChatMessage],
         system_prompt: Option<&str>,
+        web_search_enabled: bool,
     ) -> impl std::future::Future<Output = Result<TokenStream>> + Send;
 }
 

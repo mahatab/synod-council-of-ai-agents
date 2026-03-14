@@ -72,6 +72,7 @@ pub async fn run_council(
                 &prompt,
                 Some("You are an AI orchestrator. Generate system prompts for council models. Return valid JSON only."),
                 &master_key,
+                false,
             ))
             .await
             {
@@ -116,7 +117,7 @@ pub async fn run_council(
                 .map(|s| s.as_str())
                 .unwrap_or(&default_prompt);
 
-            match formatting::with_typing(bot, chat_id, call_model(&model.provider, &model.model, &messages, Some(system_prompt), &key)).await {
+            match formatting::with_typing(bot, chat_id, call_model(&model.provider, &model.model, &messages, Some(system_prompt), &key, false)).await {
                 Ok(result) => {
                     // Check for clarifying question (first model only)
                     if i == 0 && looks_like_clarifying_question(&result.content) {
@@ -260,6 +261,7 @@ pub async fn resume_after_clarification(
             &follow_up_messages,
             Some(system_prompt),
             &key,
+            false,
         ))
         .await
         {
@@ -318,7 +320,7 @@ pub async fn resume_after_clarification(
             );
             let default_prompt = get_default_system_prompt(m, false, &settings.discussion_depth, &settings.discussion_style);
 
-            match formatting::with_typing(bot, chat_id, call_model(&m.provider, &m.model, &messages, Some(&default_prompt), &key)).await {
+            match formatting::with_typing(bot, chat_id, call_model(&m.provider, &m.model, &messages, Some(&default_prompt), &key, false)).await {
                 Ok(result) => {
                     let html = formatting::format_model_response(&m.display_name, &result.content);
                     formatting::edit_html(bot, chat_id, thinking_msg.id, &html).await?;
@@ -394,7 +396,7 @@ async fn generate_master_verdict(
             "You are the master AI judge in a council of AI models. You have reviewed all council members' opinions on the user's question. Your job is to synthesize the best advice, resolve any disagreements, and deliver a clear, actionable final verdict. Be thorough but concise. Structure your response with clear sections."
         };
 
-        match formatting::with_typing(bot, chat_id, call_model(&master.provider, &master.model, &messages, Some(sys_prompt), &key)).await {
+        match formatting::with_typing(bot, chat_id, call_model(&master.provider, &master.model, &messages, Some(sys_prompt), &key, false)).await {
             Ok(result) => {
                 let html = formatting::format_master_verdict(&result.content);
                 formatting::edit_html(bot, chat_id, verdict_msg.id, &html).await?;

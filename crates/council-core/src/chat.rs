@@ -9,6 +9,24 @@ use crate::providers::{
     together::TogetherProvider, xai::XAIProvider, StreamEvent, TokenStream,
 };
 
+/// Check whether a specific model supports web search.
+/// Models not in this list will NOT get web search tools injected,
+/// even when the user has internet access enabled.
+pub fn model_supports_web_search(provider: &Provider, model: &str) -> bool {
+    match provider {
+        // Anthropic: all current models support web search
+        Provider::Anthropic => true,
+        // Google: all current models support Google Search grounding
+        Provider::Google => true,
+        // xAI: only Grok-4 family supports web search via Responses API
+        Provider::XAI => model.starts_with("grok-4"),
+        // OpenAI: most models support web search, except nano and o3-mini
+        Provider::OpenAI => !matches!(model, "gpt-4.1-nano" | "o3-mini"),
+        // Other providers have no web search API
+        Provider::DeepSeek | Provider::Mistral | Provider::Together | Provider::Cohere => false,
+    }
+}
+
 /// Result of a completed chat call.
 #[derive(Debug, Clone)]
 pub struct ChatResult {
@@ -23,8 +41,9 @@ pub async fn call_model(
     messages: &[ChatMessage],
     system_prompt: Option<&str>,
     api_key: &str,
+    web_search_enabled: bool,
 ) -> Result<ChatResult> {
-    let stream = create_stream(provider, model, messages, system_prompt, api_key).await?;
+    let stream = create_stream(provider, model, messages, system_prompt, api_key, web_search_enabled).await?;
     collect_stream(stream).await
 }
 
@@ -35,12 +54,13 @@ pub async fn call_model_streaming<F>(
     messages: &[ChatMessage],
     system_prompt: Option<&str>,
     api_key: &str,
+    web_search_enabled: bool,
     mut on_token: F,
 ) -> Result<ChatResult>
 where
     F: FnMut(&str),
 {
-    let stream = create_stream(provider, model, messages, system_prompt, api_key).await?;
+    let stream = create_stream(provider, model, messages, system_prompt, api_key, web_search_enabled).await?;
     let mut content = String::new();
     let mut usage = UsageData {
         input_tokens: 0,
@@ -73,52 +93,71 @@ where
     })
 }
 
+/// Instruction appended to the system prompt when web search is enabled.
+/// Nudges the model to actively use its search tool instead of relying on
+/// potentially stale training data.
+const WEB_SEARCH_SYSTEM_NOTE: &str = "\n\nYou have access to a web search tool. The user has enabled internet access because they want current, up-to-date information. You MUST use your web search tool to look up relevant information before answering, especially for questions about recent events, current data, live standings, or anything that may have changed after your training cutoff. Do NOT rely solely on your training data when web search is available. Always ground your response in search results.";
+
 async fn create_stream(
     provider: &Provider,
     model: &str,
     messages: &[ChatMessage],
     system_prompt: Option<&str>,
     api_key: &str,
+    web_search_enabled: bool,
 ) -> Result<TokenStream> {
+    // When web search is enabled, append a note to the system prompt instructing
+    // the model to actively use its search tool rather than relying on training data.
+    let enhanced_prompt: Option<String>;
+    let final_system_prompt = if web_search_enabled {
+        enhanced_prompt = Some(match system_prompt {
+            Some(sp) => format!("{}{}", sp, WEB_SEARCH_SYSTEM_NOTE),
+            None => WEB_SEARCH_SYSTEM_NOTE.trim_start().to_string(),
+        });
+        enhanced_prompt.as_deref()
+    } else {
+        system_prompt
+    };
+
     match provider {
         Provider::Anthropic => {
             AnthropicProvider::new()
-                .stream_chat(api_key, model, messages, system_prompt)
+                .stream_chat(api_key, model, messages, final_system_prompt, web_search_enabled)
                 .await
         }
         Provider::OpenAI => {
             OpenAIProvider::new()
-                .stream_chat(api_key, model, messages, system_prompt)
+                .stream_chat(api_key, model, messages, final_system_prompt, web_search_enabled)
                 .await
         }
         Provider::Google => {
             GoogleProvider::new()
-                .stream_chat(api_key, model, messages, system_prompt)
+                .stream_chat(api_key, model, messages, final_system_prompt, web_search_enabled)
                 .await
         }
         Provider::XAI => {
             XAIProvider::new()
-                .stream_chat(api_key, model, messages, system_prompt)
+                .stream_chat(api_key, model, messages, final_system_prompt, web_search_enabled)
                 .await
         }
         Provider::DeepSeek => {
             DeepSeekProvider::new()
-                .stream_chat(api_key, model, messages, system_prompt)
+                .stream_chat(api_key, model, messages, final_system_prompt, web_search_enabled)
                 .await
         }
         Provider::Mistral => {
             MistralProvider::new()
-                .stream_chat(api_key, model, messages, system_prompt)
+                .stream_chat(api_key, model, messages, final_system_prompt, web_search_enabled)
                 .await
         }
         Provider::Together => {
             TogetherProvider::new()
-                .stream_chat(api_key, model, messages, system_prompt)
+                .stream_chat(api_key, model, messages, final_system_prompt, web_search_enabled)
                 .await
         }
         Provider::Cohere => {
             CohereProvider::new()
-                .stream_chat(api_key, model, messages, system_prompt)
+                .stream_chat(api_key, model, messages, final_system_prompt, web_search_enabled)
                 .await
         }
     }

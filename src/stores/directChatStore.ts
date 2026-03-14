@@ -20,6 +20,7 @@ interface DirectChatStoreState {
     previousMessages: DirectChatMessage[],
     getApiKey: (service: string) => Promise<string | null>,
     onMessageComplete: (msg: DirectChatMessage) => void,
+    webSearchEnabled?: boolean,
   ) => Promise<void>;
 
   reset: () => void;
@@ -30,7 +31,7 @@ export const useDirectChatStore = create<DirectChatStoreState>((set) => ({
   currentStreamContent: '',
   error: null,
 
-  sendMessage: async (message, agent, previousMessages, getApiKey, onMessageComplete) => {
+  sendMessage: async (message, agent, previousMessages, getApiKey, onMessageComplete, webSearchEnabled = false) => {
     set({ state: 'streaming', currentStreamContent: '', error: null });
 
     try {
@@ -62,6 +63,7 @@ export const useDirectChatStore = create<DirectChatStoreState>((set) => ({
         null,
         apiKey,
         streamId,
+        webSearchEnabled,
       );
 
       unlisten();

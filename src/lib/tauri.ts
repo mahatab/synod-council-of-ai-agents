@@ -35,6 +35,7 @@ export async function streamChat(
   systemPrompt: string | null,
   apiKey: string,
   streamId: string,
+  webSearchEnabled: boolean = false,
 ): Promise<StreamChatResult> {
   return invoke('stream_chat', {
     provider,
@@ -43,6 +44,7 @@ export async function streamChat(
     systemPrompt,
     apiKey,
     streamId,
+    webSearchEnabled,
   });
 }
 

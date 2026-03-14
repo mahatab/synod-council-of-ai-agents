@@ -119,6 +119,8 @@ pub struct AppSettings {
     pub setup_completed: bool,
     #[serde(default)]
     pub telegram_enabled: bool,
+    #[serde(default)]
+    pub internet_access_enabled: bool,
 }
 
 impl Default for AppSettings {
@@ -137,6 +139,7 @@ impl Default for AppSettings {
             session_save_path: None,
             setup_completed: false,
             telegram_enabled: false,
+            internet_access_enabled: false,
         }
     }
 }

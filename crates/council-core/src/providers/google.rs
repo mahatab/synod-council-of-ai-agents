@@ -23,6 +23,7 @@ impl GoogleProvider {
         model: &str,
         messages: &[ChatMessage],
         system_prompt: Option<&str>,
+        web_search_enabled: bool,
     ) -> Result<TokenStream> {
         let contents: Vec<Value> = messages
             .iter()
@@ -46,6 +47,12 @@ impl GoogleProvider {
             body["systemInstruction"] = json!({
                 "parts": [{ "text": system }]
             });
+        }
+
+        if web_search_enabled {
+            body["tools"] = json!([{
+                "google_search": {}
+            }]);
         }
 
         let url = format!(

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { PROVIDERS, getProviderColor } from '../../types';
 import type { DirectChatAgent, Provider } from '../../types';
 import { hasApiKey } from '../../lib/tauri';
+import { useSettingsStore } from '../../stores/settingsStore';
 
 interface AgentPickerProps {
   onSelect: (agent: DirectChatAgent) => void;
@@ -15,12 +16,14 @@ interface ModelItem {
   model: string;
   displayName: string;
   color: string;
+  webSearch?: boolean;
 }
 
 export default function AgentPicker({ onSelect }: AgentPickerProps) {
   const [search, setSearch] = useState('');
   const [availableProviders, setAvailableProviders] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const internetAccessEnabled = useSettingsStore((s) => s.settings.internetAccessEnabled);
 
   useEffect(() => {
     const checkProviders = async () => {
@@ -44,6 +47,7 @@ export default function AgentPicker({ onSelect }: AgentPickerProps) {
       model: m.id,
       displayName: m.name,
       color: getProviderColor(p.id as Provider),
+      webSearch: m.webSearch,
     })),
   );
 
@@ -115,7 +119,9 @@ export default function AgentPicker({ onSelect }: AgentPickerProps) {
         {/* Model grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[400px] overflow-y-auto">
           {sorted.map((m) => {
-            const isAvailable = availableProviders.has(m.provider);
+            const hasKey = availableProviders.has(m.provider);
+            const blockedByWebSearch = internetAccessEnabled && !m.webSearch;
+            const isAvailable = hasKey && !blockedByWebSearch;
             return (
               <button
                 key={`${m.provider}-${m.model}`}
@@ -147,7 +153,7 @@ export default function AgentPicker({ onSelect }: AgentPickerProps) {
                   </p>
                   <p className="text-xs text-[var(--color-text-tertiary)]">
                     {m.providerName}
-                    {!isAvailable && ' · No API key'}
+                    {blockedByWebSearch ? ' · No web search' : !hasKey ? ' · No API key' : ''}
                   </p>
                 </div>
               </button>

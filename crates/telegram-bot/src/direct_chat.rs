@@ -84,7 +84,7 @@ pub async fn start_direct_chat(
 
     let thinking_msg = formatting::send_thinking(bot, chat_id, &model.display_name).await?;
 
-    match formatting::with_typing(bot, chat_id, call_model(&model.provider, &model.model, &chat_messages, None, &key)).await {
+    match formatting::with_typing(bot, chat_id, call_model(&model.provider, &model.model, &chat_messages, None, &key, false)).await {
         Ok(result) => {
             let html = formatting::format_model_response(&model.display_name, &result.content);
             formatting::edit_html(bot, chat_id, thinking_msg.id, &html).await?;
@@ -186,7 +186,7 @@ pub async fn continue_direct_chat(
 
     let thinking_msg = formatting::send_thinking(bot, chat_id, &agent.display_name).await?;
 
-    match formatting::with_typing(bot, chat_id, call_model(&provider, &agent.model, &chat_messages, None, &key)).await {
+    match formatting::with_typing(bot, chat_id, call_model(&provider, &agent.model, &chat_messages, None, &key, false)).await {
         Ok(result) => {
             let html = formatting::format_model_response(&agent.display_name, &result.content);
             formatting::edit_html(bot, chat_id, thinking_msg.id, &html).await?;

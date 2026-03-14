@@ -17,42 +17,56 @@ pub async fn stream_chat(
     system_prompt: Option<String>,
     api_key: String,
     stream_id: String,
+    web_search_enabled: Option<bool>,
 ) -> Result<StreamChatResult, String> {
-    let system_ref = system_prompt.as_deref();
+    let web_search_enabled = web_search_enabled.unwrap_or(false);
     let event_name = format!("stream-token-{}", stream_id);
+
+    // When web search is enabled, append a note to the system prompt instructing
+    // the model to actively use its search tool rather than relying on training data.
+    let enhanced_prompt = if web_search_enabled {
+        let note = "\n\nYou have access to a web search tool. The user has enabled internet access because they want current, up-to-date information. You MUST use your web search tool to look up relevant information before answering, especially for questions about recent events, current data, live standings, or anything that may have changed after your training cutoff. Do NOT rely solely on your training data when web search is available. Always ground your response in search results.";
+        Some(match &system_prompt {
+            Some(sp) => format!("{}{}", sp, note),
+            None => note.trim_start().to_string(),
+        })
+    } else {
+        system_prompt
+    };
+    let system_ref = enhanced_prompt.as_deref();
 
     let result = match provider {
         Provider::Anthropic => {
             let p = AnthropicProvider::new();
-            p.stream_chat(&api_key, &model, &messages, system_ref).await
+            p.stream_chat(&api_key, &model, &messages, system_ref, web_search_enabled).await
         }
         Provider::OpenAI => {
             let p = OpenAIProvider::new();
-            p.stream_chat(&api_key, &model, &messages, system_ref).await
+            p.stream_chat(&api_key, &model, &messages, system_ref, web_search_enabled).await
         }
         Provider::Google => {
             let p = GoogleProvider::new();
-            p.stream_chat(&api_key, &model, &messages, system_ref).await
+            p.stream_chat(&api_key, &model, &messages, system_ref, web_search_enabled).await
         }
         Provider::XAI => {
             let p = XAIProvider::new();
-            p.stream_chat(&api_key, &model, &messages, system_ref).await
+            p.stream_chat(&api_key, &model, &messages, system_ref, web_search_enabled).await
         }
         Provider::DeepSeek => {
             let p = DeepSeekProvider::new();
-            p.stream_chat(&api_key, &model, &messages, system_ref).await
+            p.stream_chat(&api_key, &model, &messages, system_ref, web_search_enabled).await
         }
         Provider::Mistral => {
             let p = MistralProvider::new();
-            p.stream_chat(&api_key, &model, &messages, system_ref).await
+            p.stream_chat(&api_key, &model, &messages, system_ref, web_search_enabled).await
         }
         Provider::Together => {
             let p = TogetherProvider::new();
-            p.stream_chat(&api_key, &model, &messages, system_ref).await
+            p.stream_chat(&api_key, &model, &messages, system_ref, web_search_enabled).await
         }
         Provider::Cohere => {
             let p = CohereProvider::new();
-            p.stream_chat(&api_key, &model, &messages, system_ref).await
+            p.stream_chat(&api_key, &model, &messages, system_ref, web_search_enabled).await
         }
     };
 

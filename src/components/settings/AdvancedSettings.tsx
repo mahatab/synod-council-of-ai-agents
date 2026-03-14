@@ -1,3 +1,4 @@
+import { Globe } from 'lucide-react';
 import { useSettingsStore } from '../../stores/settingsStore';
 import type { SystemPromptMode, DiscussionDepth, DiscussionStyle } from '../../types';
 
@@ -51,6 +52,61 @@ export default function AdvancedSettings() {
 
   return (
     <div>
+      <div className="flex items-center gap-2 mb-1">
+        <Globe size={14} className="text-[var(--color-accent)]" />
+        <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">
+          Internet Access
+        </h3>
+      </div>
+      <p className="text-xs text-[var(--color-text-tertiary)] mb-3">
+        Allow models to search the web for up-to-date information. Supported by Anthropic, OpenAI, Google, and xAI.
+      </p>
+
+      <div className="space-y-2 mb-6">
+        <button
+          onClick={() => updateSettings({ internetAccessEnabled: true })}
+          className={`w-full text-left p-3 rounded-[var(--radius-md)] border transition-all ${
+            settings.internetAccessEnabled
+              ? 'border-[var(--color-accent)] bg-[var(--color-accent-light)]'
+              : 'border-[var(--color-border-primary)] hover:border-[var(--color-border-secondary)] bg-[var(--color-bg-secondary)]'
+          }`}
+        >
+          <span
+            className={`text-sm font-medium ${
+              settings.internetAccessEnabled
+                ? 'text-[var(--color-accent)]'
+                : 'text-[var(--color-text-primary)]'
+            }`}
+          >
+            Enabled
+          </span>
+          <p className="text-xs text-[var(--color-text-tertiary)] mt-1">
+            Models will search the web when answering. DeepSeek, Mistral, Together AI, and Cohere do not support web search and will be unavailable.
+          </p>
+        </button>
+        <button
+          onClick={() => updateSettings({ internetAccessEnabled: false })}
+          className={`w-full text-left p-3 rounded-[var(--radius-md)] border transition-all ${
+            !settings.internetAccessEnabled
+              ? 'border-[var(--color-accent)] bg-[var(--color-accent-light)]'
+              : 'border-[var(--color-border-primary)] hover:border-[var(--color-border-secondary)] bg-[var(--color-bg-secondary)]'
+          }`}
+        >
+          <span
+            className={`text-sm font-medium ${
+              !settings.internetAccessEnabled
+                ? 'text-[var(--color-accent)]'
+                : 'text-[var(--color-text-primary)]'
+            }`}
+          >
+            Disabled
+          </span>
+          <p className="text-xs text-[var(--color-text-tertiary)] mt-1">
+            Models respond only from their training data.
+          </p>
+        </button>
+      </div>
+
       <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-1">
         Discussion Style
       </h3>

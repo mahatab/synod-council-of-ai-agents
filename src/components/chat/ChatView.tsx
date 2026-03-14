@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { Send } from 'lucide-react';
+import { Send, Globe } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import UserMessage from './UserMessage';
 import ModelResponse from './ModelResponse';
@@ -19,6 +19,7 @@ import { useSessionStore } from '../../stores/sessionStore';
 import { getApiKey } from '../../lib/tauri';
 import { generateSessionTitle } from '../../lib/sessionTitle';
 import type { DiscussionEntry, Session } from '../../types';
+import { modelSupportsWebSearch } from '../../types';
 
 export default function ChatView() {
   const [input, setInput] = useState('');
@@ -33,7 +34,7 @@ export default function ChatView() {
   const [selectedMention, setSelectedMention] = useState<MentionModel | null>(null);
 
   const council = useCouncilStore();
-  const settings = useSettingsStore((s) => s.settings);
+  const { settings, updateSettings } = useSettingsStore();
   const { activeSession, createSession, saveCurrentSession, updateActiveSession } =
     useSessionStore();
   const sessionLoading = useSessionStore((s) => s.loading);
@@ -49,6 +50,11 @@ export default function ChatView() {
     updateSessionRef.current = updateActiveSession;
     settingsRef.current = settings;
   }, [saveCurrentSession, updateActiveSession, settings]);
+
+  // When internet access is enabled, exclude models that don't support web search
+  const activeModels = settings.internetAccessEnabled
+    ? settings.councilModels.filter(m => modelSupportsWebSearch(m.provider, m.model))
+    : settings.councilModels;
 
   // Sync entries from active session (setState during render pattern)
   const activeSessionId = activeSession?.id;
@@ -131,6 +137,7 @@ export default function ChatView() {
         entriesRef.current,
         getApiKey,
         handleEntryComplete,
+        settings.internetAccessEnabled,
       );
 
       // Save after follow-up complete
@@ -172,7 +179,7 @@ export default function ChatView() {
       updatedAt: new Date().toISOString(),
       userQuestion: question,
       councilConfig: {
-        models: settings.councilModels,
+        models: activeModels,
         masterModel: settings.masterModel,
         systemPromptMode: settings.systemPromptMode,
       },
@@ -194,13 +201,14 @@ export default function ChatView() {
     // Run the council discussion (each entry auto-saves via handleEntryComplete)
     await council.startDiscussion(
       question,
-      settings.councilModels,
+      activeModels,
       settings.masterModel,
       settings.systemPromptMode,
       settings.discussionDepth,
       settings.discussionStyle,
       getApiKey,
       handleEntryComplete,
+      settings.internetAccessEnabled,
     );
 
     // Final save with all collected entries
@@ -263,7 +271,7 @@ export default function ChatView() {
   };
 
   const isProcessing = council.state !== 'idle' && council.state !== 'complete' && council.state !== 'error';
-  const hasModels = settings.councilModels.length > 0;
+  const hasModels = activeModels.length > 0;
   const canFollowUp = activeSession != null && entries.some(e => e.role === 'master_verdict');
 
   return (
@@ -305,11 +313,31 @@ export default function ChatView() {
                   together. Each model provides its unique perspective before a
                   master model delivers the final verdict.
                 </p>
-                {!hasModels && (
+                {!hasModels && settings.internetAccessEnabled && settings.councilModels.length > 0 ? (
+                  <p className="text-sm text-amber-500">
+                    Internet access is enabled but none of your council models support web search. Disable internet access or add models with web search capability.
+                  </p>
+                ) : !hasModels ? (
                   <p className="text-sm text-[var(--color-accent)]">
                     Set up your council models in Settings to get started.
                   </p>
-                )}
+                ) : settings.internetAccessEnabled && activeModels.length < settings.councilModels.length ? (
+                  <div className="mt-2 px-4 py-2.5 rounded-[var(--radius-md)] bg-amber-500/10 border border-amber-500/20 inline-block">
+                    <p className="text-xs text-amber-500">
+                      <span className="font-medium">
+                        {settings.councilModels.length - activeModels.length} of {settings.councilModels.length} model{settings.councilModels.length > 1 ? 's' : ''} excluded
+                      </span>
+                      {' — '}
+                      {settings.councilModels
+                        .filter(m => !modelSupportsWebSearch(m.provider, m.model))
+                        .map(m => m.displayName)
+                        .join(', ')
+                      }
+                      {' '}
+                      {settings.councilModels.length - activeModels.length > 1 ? "don't" : "doesn't"} support web search
+                    </p>
+                  </div>
+                ) : null}
               </motion.div>
             </div>
           )
@@ -386,10 +414,10 @@ export default function ChatView() {
 
             {council.state === 'model_turn' && council.currentModelIndex >= 0 && (
               <ModelResponse
-                provider={settings.councilModels[council.currentModelIndex]?.provider || ''}
-                model={settings.councilModels[council.currentModelIndex]?.model || ''}
+                provider={activeModels[council.currentModelIndex]?.provider || ''}
+                model={activeModels[council.currentModelIndex]?.model || ''}
                 displayName={
-                  settings.councilModels[council.currentModelIndex]?.displayName || ''
+                  activeModels[council.currentModelIndex]?.displayName || ''
                 }
                 content={council.currentStreamContent}
                 isStreaming={true}
@@ -404,9 +432,9 @@ export default function ChatView() {
                 .map(([modelIndex, { content, done }]) => (
                   <ModelResponse
                     key={`parallel-${modelIndex}`}
-                    provider={settings.councilModels[modelIndex]?.provider || ''}
-                    model={settings.councilModels[modelIndex]?.model || ''}
-                    displayName={settings.councilModels[modelIndex]?.displayName || ''}
+                    provider={activeModels[modelIndex]?.provider || ''}
+                    model={activeModels[modelIndex]?.model || ''}
+                    displayName={activeModels[modelIndex]?.displayName || ''}
                     content={content}
                     isStreaming={!done}
                     isThinking={!content && !done}
@@ -418,7 +446,7 @@ export default function ChatView() {
             {council.state === 'model_turn' && council.parallelStreams.size > 0 && (
               <ParallelStatusOverlay
                 parallelStreams={council.parallelStreams}
-                models={settings.councilModels}
+                models={activeModels}
                 model0Complete={entries.some(e => e.role === 'model')}
               />
             )}
@@ -482,7 +510,7 @@ export default function ChatView() {
             {showMentionDropdown && (
               <MentionDropdown
                 query={mentionQuery}
-                models={activeSession?.councilConfig.models ?? settings.councilModels}
+                models={activeSession?.councilConfig.models ?? activeModels}
                 masterModel={activeSession?.councilConfig.masterModel ?? settings.masterModel}
                 onSelect={handleMentionSelect}
                 onClose={() => {
@@ -513,6 +541,17 @@ export default function ChatView() {
                 target.style.height = Math.min(target.scrollHeight, 120) + 'px';
               }}
             />
+            <button
+              onClick={() => updateSettings({ internetAccessEnabled: !settings.internetAccessEnabled })}
+              className={`flex-shrink-0 p-1.5 rounded-[var(--radius-sm)] transition-colors ${
+                settings.internetAccessEnabled
+                  ? 'text-[var(--color-accent)] bg-[var(--color-accent-light)]'
+                  : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+              }`}
+              title={settings.internetAccessEnabled ? 'Internet access enabled' : 'Enable internet access'}
+            >
+              <Globe size={16} />
+            </button>
             <Button
               onClick={handleSubmit}
               disabled={!input.trim() || isProcessing || !hasModels}

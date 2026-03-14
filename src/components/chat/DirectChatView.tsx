@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { Send, Bot } from 'lucide-react';
+import { Send, Bot, Globe } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 import UserMessage from './UserMessage';
 import ModelResponse from './ModelResponse';
@@ -23,7 +23,7 @@ export default function DirectChatView() {
   const messagesRef = useRef<DirectChatMessage[]>([]);
 
   const directChat = useDirectChatStore();
-  const settings = useSettingsStore((s) => s.settings);
+  const { settings, updateSettings } = useSettingsStore();
   const { activeSession, createSession, saveCurrentSession, updateActiveSession } =
     useSessionStore();
   const sessionLoading = useSessionStore((s) => s.loading);
@@ -133,6 +133,7 @@ export default function DirectChatView() {
         [],
         getApiKey,
         handleMessageComplete,
+        settings.internetAccessEnabled,
       );
     } else {
       // Existing session — add user message and send
@@ -148,6 +149,7 @@ export default function DirectChatView() {
         messagesRef.current.filter((m) => m !== userMessage),
         getApiKey,
         handleMessageComplete,
+        settings.internetAccessEnabled,
       );
     }
   };
@@ -271,6 +273,17 @@ export default function DirectChatView() {
                 target.style.height = Math.min(target.scrollHeight, 120) + 'px';
               }}
             />
+            <button
+              onClick={() => updateSettings({ internetAccessEnabled: !settings.internetAccessEnabled })}
+              className={`flex-shrink-0 p-1.5 rounded-[var(--radius-sm)] transition-colors ${
+                settings.internetAccessEnabled
+                  ? 'text-[var(--color-accent)] bg-[var(--color-accent-light)]'
+                  : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'
+              }`}
+              title={settings.internetAccessEnabled ? 'Internet access enabled' : 'Enable internet access'}
+            >
+              <Globe size={16} />
+            </button>
             <Button
               onClick={handleSubmit}
               disabled={!input.trim() || isStreaming || !selectedAgent}

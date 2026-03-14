@@ -27,3 +27,4 @@ log = "0.4"
 tokio = { version = "1", features = ["full"] }
 futures = "0.3"
 council-telegram-bot = { path = "../crates/telegram-bot" }
+tauri-plugin-opener = "2"

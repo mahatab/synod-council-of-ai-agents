@@ -23,7 +23,12 @@ impl OpenAIProvider {
         model: &str,
         messages: &[ChatMessage],
         system_prompt: Option<&str>,
+        web_search_enabled: bool,
     ) -> Result<TokenStream> {
+        if web_search_enabled {
+            return self.stream_chat_responses_api(api_key, model, messages, system_prompt).await;
+        }
+
         let mut api_messages: Vec<Value> = Vec::new();
 
         if let Some(system) = system_prompt {
@@ -85,6 +90,87 @@ impl OpenAIProvider {
                         input_tokens: input as u32,
                         output_tokens: output as u32,
                     }));
+                }
+            }
+
+            events
+        }))
+    }
+
+    /// Web search via the OpenAI Responses API (`/v1/responses`).
+    /// Uses `input` instead of `messages` and `web_search_preview` tool.
+    async fn stream_chat_responses_api(
+        &self,
+        api_key: &str,
+        model: &str,
+        messages: &[ChatMessage],
+        system_prompt: Option<&str>,
+    ) -> Result<TokenStream> {
+        let mut input: Vec<Value> = Vec::new();
+
+        if let Some(system) = system_prompt {
+            input.push(json!({
+                "role": "system",
+                "content": system
+            }));
+        }
+
+        for m in messages {
+            input.push(json!({
+                "role": m.role,
+                "content": m.content
+            }));
+        }
+
+        let body = json!({
+            "model": model,
+            "input": input,
+            "tools": [{"type": "web_search_preview"}],
+            "stream": true
+        });
+
+        let response = self
+            .client
+            .post("https://api.openai.com/v1/responses")
+            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Content-Type", "application/json")
+            .json(&body)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_body = response.text().await.unwrap_or_default();
+            return Err(anyhow!(
+                "OpenAI Responses API error ({}): {}",
+                status,
+                error_body
+            ));
+        }
+
+        let byte_stream = response.bytes_stream();
+
+        Ok(parse_sse_stream(byte_stream, |event| {
+            let mut events = Vec::new();
+
+            // Text delta tokens from Responses API
+            if event["type"] == "response.output_text.delta" {
+                if let Some(delta) = event["delta"].as_str() {
+                    events.push(StreamEvent::Token(delta.to_string()));
+                }
+            }
+
+            // Usage from completed response
+            if event["type"] == "response.completed" {
+                if let Some(usage) = event["response"].get("usage") {
+                    let input = usage["input_tokens"].as_u64().unwrap_or(0);
+                    let output = usage["output_tokens"].as_u64().unwrap_or(0);
+                    if input > 0 || output > 0 {
+                        events.push(StreamEvent::Usage(UsageData {
+                            input_tokens: input as u32,
+                            output_tokens: output as u32,
+                        }));
+                    }
                 }
             }
 
