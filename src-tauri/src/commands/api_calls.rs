@@ -8,6 +8,7 @@ use council_core::providers::{
     together::TogetherProvider, xai::XAIProvider, StreamEvent,
 };
 
+#[allow(clippy::too_many_arguments)]
 #[command]
 pub async fn stream_chat(
     app: AppHandle,
