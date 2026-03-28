@@ -123,6 +123,11 @@ You ask a question, and your council of AI models responds. In **Sequential** mo
 <p align="center"><em>Local Models — run AI models on your own machine via LM Studio, with setup guide and live server status</em></p>
 
 <p align="center">
+  <img src="docs/images/screenshots/telegram.png" alt="Synode Telegram bot integration settings" width="700" />
+</p>
+<p align="center"><em>Telegram Integration — chat with your council from any device via a built-in Telegram bot</em></p>
+
+<p align="center">
   <img src="docs/images/screenshots/advanced-settings-3.png" alt="Synode advanced settings showing prompt engineering modes" width="700" />
 </p>
 <p align="center"><em>Control your council with prompt engineering modes</em></p>
